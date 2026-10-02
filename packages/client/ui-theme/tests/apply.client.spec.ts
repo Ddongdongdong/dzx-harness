@@ -32,7 +32,10 @@ async function bench(isLoopback = true) {
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('zh')
   ctx.provide('locale', locale)
-  const section: Record<string, unknown> = { preference: 'system', fontSize: 14 }
+  const section: Record<string, unknown> = {
+    preference: 'system', fontSize: 14, accent: 'graphite', density: 'comfortable',
+    showContextPanel: true,
+  }
   const namespace = () => ({
     ns: THEME_SETTINGS_NAMESPACE,
     schema: ThemeSettingsSchema.toJSON(),
@@ -157,13 +160,19 @@ describe('ui-theme apply', () => {
     const b = await bench()
     // The shared mirror read once at bench time; a Host-side change reaches it
     // through the document invalidation, exactly as production announces one.
-    b.setHostSection({ preference: 'dark', fontSize: 17 })
+    b.setHostSection({
+      preference: 'dark', fontSize: 17, accent: 'sage', density: 'compact',
+      showContextPanel: false,
+    })
     b.events.emit('settings/document-updated', [THEME_SETTINGS_NAMESPACE, 0])
     declareItems(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const theme = b.ctx.get('theme') as ThemeRuntime
     await vi.waitFor(() => { expect(theme.getTheme().preference).toBe('dark') })
     expect(theme.getTheme().fontSize).toBe(17)
+    expect(theme.getTheme()).toMatchObject({
+      accent: 'sage', density: 'compact', showContextPanel: false,
+    })
     // The mirror refreshes on every document commit (ns-agnostic); the scope's
     // derived value only moves when its own namespace changed.
     b.events.emit('settings/document-updated', ['unrelated', 0])

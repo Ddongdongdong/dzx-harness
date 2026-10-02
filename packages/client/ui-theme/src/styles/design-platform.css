@@ -250,6 +250,35 @@ body {
   background-color: var(--dsw-alias-bg-base);
 }
 
+/* Arden light surface: remap the shared aliases so existing controls inherit
+   the redesign without forking their behavior or introducing local colors. */
+body:not([data-ds-dark-theme]) {
+  --dsw-alias-bg-base: var(--arden-background);
+  --dsw-alias-bg-layer-1: var(--arden-surface);
+  --dsw-alias-bg-layer-2: var(--arden-surface);
+  --dsw-alias-bg-layer-3: var(--arden-surface);
+  --dsw-alias-border-l1: color-mix(in srgb, var(--arden-border) 45%, transparent);
+  --dsw-alias-border-l2: var(--arden-border);
+  --dsw-alias-border-l3: var(--arden-border);
+  --dsw-alias-label-primary: var(--arden-text-primary);
+  --dsw-alias-label-secondary: var(--arden-text-secondary);
+  --dsw-alias-label-tertiary: var(--arden-text-secondary);
+  --dsw-alias-label-caption: var(--arden-text-muted);
+  --dsw-alias-brand-primary: var(--arden-accent);
+  --dsw-alias-button-primary-fill: var(--arden-accent);
+  --dsw-alias-button-info-fill: var(--arden-accent);
+  --dsw-alias-button-info-hover: #504b44;
+  --dsw-alias-button-elevated-fill: var(--arden-surface);
+  --dsw-alias-button-floating-hover: var(--arden-surface-hover);
+  --dsw-alias-interactive-bg-hover: rgba(55, 52, 47, 0.055);
+  --dsw-alias-interactive-bg-hover-solid: var(--arden-surface-hover);
+  --dsw-specific-input-major: var(--arden-surface);
+  --dsw-specific-selector: var(--arden-surface-hover);
+  --dsw-specific-sidebar-fill: var(--arden-sidebar);
+  --dsw-specific-sidebar-nav-item-active: #e9e6df;
+  --dsw-specific-sidebar-nav-item-hover: #eeebe4;
+}
+
 body[data-ds-dark-theme] {
   --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
   --dsw-alias-bg-document-preview: var(--dsw-static-neutral-bluish-950);

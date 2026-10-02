@@ -1,0 +1,3 @@
+- insert:
+    - id: tutorial-runtime-status-ui
+      name: 'E:/deep/deepseek-harness/scratch-plugin/ui-runtime-status/index.js'

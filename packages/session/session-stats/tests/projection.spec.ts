@@ -52,7 +52,8 @@ function appendEmptyAssistantMessage(session: Session, turn: number, step: numbe
 /** The all-zero projection value plus overrides, for exact fold expectations. */
 function totals(overrides: Partial<SessionStatsProjection> = {}): SessionStatsProjection {
   return {
-    turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0,
+    turns: 0, steps: 0, llmMs: 0, toolMs: 0, toolCalls: 0, toolErrors: 0,
+    ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0,
     ...overrides,
   }
 }
@@ -282,19 +283,27 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
   })
 
   it('pairs tool wall time by callId, ignores orphan results, and prunes leftovers at turn/end', () => {
-    const result = (callId: string): unknown =>
-      ({ turn: 1, step: 1, message: { source: { kind: 'tool', callId } } })
+    const result = (callId: string, isError = false): unknown => ({
+      turn: 1,
+      step: 1,
+      message: {
+        source: { kind: 'tool', callId },
+        content: [{ type: 'tool-result', toolCallId: callId, content: [], isError }],
+      },
+    })
     const paired = fold([
       at(1_000, 'step/start', { turn: 1, step: 1 }),
       at(1_100, 'tool/call', { turn: 1, step: 1, callId: 'a', name: 'read', arguments: '{}' }),
       at(1_200, 'tool/call', { turn: 1, step: 1, callId: 'b', name: 'read', arguments: '{}' }),
       // Out-of-order settlement pairs by id, not adjacency.
       at(4_200, 'tool/result', result('b')),
-      at(1_600, 'tool/result', result('a')),
+      at(1_600, 'tool/result', result('a', true)),
       at(5_000, 'tool/result', result('ghost')),
       at(5_100, 'step/end', { turn: 1, step: 1 }),
     ])
-    expect(paired).toEqual(totals({ turns: 1, steps: 1, toolMs: 3_500 }))
+    expect(paired).toEqual(totals({
+      turns: 1, steps: 1, toolMs: 3_500, toolCalls: 3, toolErrors: 1,
+    }))
     // An unresolved call is dropped at turn/end; a later result cannot pair.
     const pruned = fold([
       at(1_000, 'step/start', { turn: 1, step: 1 }),
@@ -303,12 +312,18 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
       at(2_100, 'turn/end', { turn: 1, reason: { kind: 'aborted', reason: { kind: 'legacy' } } }),
       at(9_000, 'tool/result', result('orphan')),
     ])
-    expect(pruned).toEqual(totals({ turns: 1, steps: 1 }))
+    expect(pruned).toEqual(totals({ turns: 1, steps: 1, toolCalls: 1 }))
   })
 
   it('pairs only own pendingCalls keys: a prototype-name callId without a recorded call stays unmatched', () => {
-    const result = (callId: string): unknown =>
-      ({ turn: 1, step: 1, message: { source: { kind: 'tool', callId } } })
+    const result = (callId: string): unknown => ({
+      turn: 1,
+      step: 1,
+      message: {
+        source: { kind: 'tool', callId },
+        content: [{ type: 'tool-result', toolCallId: callId, content: [], isError: false }],
+      },
+    })
     // Crash recovery (TOOL_NOT_STARTED) emits results with no preceding
     // tool/call; a provider-minted callId colliding with an Object prototype
     // property must read as absent, not as an inherited function that would
@@ -317,14 +332,14 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
       at(1_000, 'step/start', { turn: 1, step: 1 }),
       at(1_500, 'tool/result', result('toString')),
       at(2_000, 'step/end', { turn: 1, step: 1 }),
-    ])).toEqual(totals({ turns: 1, steps: 1 }))
+    ])).toEqual(totals({ turns: 1, steps: 1, toolCalls: 1 }))
     // The same name pairs normally once its call is recorded.
     expect(fold([
       at(1_000, 'step/start', { turn: 1, step: 1 }),
       at(1_100, 'tool/call', { turn: 1, step: 1, callId: 'constructor', name: 'read', arguments: '{}' }),
       at(1_600, 'tool/result', result('constructor')),
       at(2_000, 'step/end', { turn: 1, step: 1 }),
-    ])).toEqual(totals({ turns: 1, steps: 1, toolMs: 500 }))
+    ])).toEqual(totals({ turns: 1, steps: 1, toolMs: 500, toolCalls: 1 }))
   })
 
   it('skips decode for an invalid usage report and ignores a duplicate assembled message', () => {

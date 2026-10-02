@@ -15,7 +15,10 @@ function snapshot(
 ): ThemeSnapshot {
   // The presenter must key off colorScheme, not the id — keep them distinct.
   const active = { id: `${colorScheme}-test`, colorScheme, tokens }
-  return { preference, fontSize, active, themes: [active], revision: 1 }
+  return {
+    preference, fontSize, accent: 'graphite', density: 'comfortable',
+    showContextPanel: true, active, themes: [active], revision: 1,
+  }
 }
 
 function clearThemePresentation(): void {
@@ -84,6 +87,22 @@ describe('ThemePresenter', () => {
     expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('14px')
     presenter.apply(snapshot('light', {}, 17))
     expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('17px')
+  })
+
+  it('publishes Arden customization attributes and removes them on disposal', () => {
+    const presenter = new ThemePresenter()
+    const customized = {
+      ...snapshot('light'), accent: 'sage' as const, density: 'compact' as const,
+      showContextPanel: false,
+    }
+    presenter.apply(customized)
+    expect(document.body.getAttribute('data-arden-accent')).toBe('sage')
+    expect(document.body.getAttribute('data-arden-density')).toBe('compact')
+    expect(document.body.getAttribute('data-arden-context-panel')).toBe('hidden')
+    presenter.dispose()
+    expect(document.body.hasAttribute('data-arden-accent')).toBe(false)
+    expect(document.body.hasAttribute('data-arden-density')).toBe(false)
+    expect(document.body.hasAttribute('data-arden-context-panel')).toBe(false)
   })
 
   it('publishes the theme source: system stays system, fixed preferences publish the resolved scheme', () => {

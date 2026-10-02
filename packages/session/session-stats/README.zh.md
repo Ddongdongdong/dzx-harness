@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包通过公开的 `sessionStats` 值，为客户端提供全会话轮次与步骤计数，以及 LLM、工具、首 token 和解码墙钟时间。这些数字来自完整的持久日志，因此分页与压缩不会改变它们。当客户端必须在重新加载或缩减历史记录后显示一致的会话统计时，请使用本包。全会话统计不可用时，客户端可改用窗口口径计数。
+本包通过公开的 `sessionStats` 值，为客户端提供全会话轮次、步骤、已结算工具调用与工具错误计数，以及 LLM、工具、首 token 和解码墙钟时间。这些数字来自完整的持久日志，因此分页与压缩不会改变它们。当客户端必须在重新加载或缩减历史记录后显示一致的会话统计时，请使用本包。全会话统计不可用时，客户端可改用窗口口径计数。
 
 ## 目录
 
@@ -43,6 +43,8 @@ kind: "package-reference"
 | `steps` | 已关闭的步——完成、失败、取消与 max-tokens 的步全部计入 |
 | `llmMs` | 组装出消息的步的模型墙钟时间之和 |
 | `toolMs` | 匹配的 `tool/call` → `tool/result` 墙钟时间之和 |
+| `toolCalls` | 从持久 `tool/result` 事件计数的已结算顶层工具调用 |
+| `toolErrors` | 持久结果被标记为错误的已结算顶层工具调用 |
 | `ttftMs` / `ttftSteps` | 首 token 延迟之和及其承载步数 |
 | `decodeMs` / `decodeTokens` | 上报用量的步的解码墙钟时间与提供方输出 token 之和 |
 
@@ -76,7 +78,7 @@ kind: "package-reference"
 
 ### 数据模型
 
-折叠状态保存八个总计外加进行中的边界：`lastTurn`（最近一次被计数 `step/end` 的轮次）、`openStep`（打开步的边界事实，由其 `assistant/message` 关闭）与 `pendingCalls`（按 callId 记录的工具分发时间）。wire 视图是严格子集——八个总计——因此持久缓存的状态 schema 以边界字段扩展视图 schema。
+折叠状态保存十个总计外加进行中的边界：`lastTurn`（最近一次被计数 `step/end` 的轮次）、`openStep`（打开步的边界事实，由其 `assistant/message` 关闭）与 `pendingCalls`（按 callId 记录的工具分发时间）。wire 视图是严格子集——十个总计——因此持久缓存的状态 schema 以边界字段扩展视图 schema。状态版本 2 新增工具计数；旧版投影缓存会从 Session 日志重建。
 
 ### 折叠规则
 
@@ -84,6 +86,7 @@ kind: "package-reference"
 - 首 token 延迟记录首个非空 delta chunk，并在步内 `llm/retry` 后保留。
 - 解码时间与 token 只在同时携带首 token 与有效提供方用量报告的步上累加；与窗口折叠守卫节点用量一样忽略畸形用量。
 - 工具时间按 callId 配对 `tool/call` → `tool/result`；未解决的调用在 `turn/end` 时丢弃，因为结果总在其轮内落地，而撞上 `Object` 原型名的 callId 读作未匹配。
+- 工具计数由每个持久 `tool/result` 累加，包括没有匹配调用的合成恢复结果；`toolErrors` 读取结果块的 `isError` 标志。
 
 </details>
 
@@ -119,6 +122,7 @@ kind: "package-reference"
 - **步数统计的是已发生的工作，而非可见输出**——在产生任何可见内容前就失败的步仍以 `step/end` 关闭并计入；被崩溃打断的步在会话重新加载后计入，届时崩溃恢复补写合成的 `step/end`。
 - **被取消的步计数但不计时**——没有组装出 assistant 消息，其部分流式时间不进入任何墙钟数字；反之 max-tokens 的 usage 宿主消息贡献 surface 上看不到的模型时间。
 - **计数是日志口径，不是 surface 口径**——消息后来被压缩掉的步仍然计入；数字描述整个会话，而非当前模型可见 surface。
+- **工具调用在结算时计数**——进行中的调用没有 `tool/result`，结算前不计数；崩溃恢复可为未启动的工作补写错误结果，该持久结果同时计为一次工具调用和一次工具错误。
 - **仅在组合了投影注册表时挂载**——其他装配不提供 `sessionStats` 键，其消费者回退到窗口口径计数。
 
 <a id="dev-note"></a>

@@ -4,7 +4,10 @@
  * row components read via props.useStore.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
-import { DEFAULT_FONT_SIZE, type ThemePreference } from '../theme-settings.ts'
+import {
+  DEFAULT_ACCENT, DEFAULT_DENSITY, DEFAULT_FONT_SIZE, DEFAULT_SHOW_CONTEXT_PANEL,
+  type ArdenAccent, type ArdenDensity, type ThemePreference,
+} from '../theme-settings.ts'
 
 /** Store state mirrored from the theme snapshot. */
 export interface AppearanceRowState {
@@ -12,11 +15,15 @@ export interface AppearanceRowState {
   preference: ThemePreference
   /** Service revision; -1 until first sync so revision 0 lands as a change. */
   revision: number
+  accent: ArdenAccent
+  density: ArdenDensity
+  showContextPanel: boolean
 }
 
 /** Declared action shape giving the exported factory a stable return type. */
 type AppearanceRowActions = {
-  sync: (draft: AppearanceRowState, preference: ThemePreference, revision: number) => void
+  sync: (draft: AppearanceRowState, preference: ThemePreference, accent: ArdenAccent,
+    density: ArdenDensity, showContextPanel: boolean, revision: number) => void
 }
 
 /**
@@ -25,11 +32,18 @@ type AppearanceRowActions = {
  */
 export function createAppearanceRowStore(): EngineStoreHandle<AppearanceRowState, AppearanceRowActions> {
   return defineStore({
-    init: (): AppearanceRowState => ({ preference: 'system', revision: -1 }),
+    init: (): AppearanceRowState => ({
+      preference: 'system', accent: DEFAULT_ACCENT, density: DEFAULT_DENSITY,
+      showContextPanel: DEFAULT_SHOW_CONTEXT_PANEL, revision: -1,
+    }),
     actions: {
-      sync: (d, preference: ThemePreference, revision: number) => {
+      sync: (d, preference: ThemePreference, accent: ArdenAccent, density: ArdenDensity,
+        showContextPanel: boolean, revision: number) => {
         if (revision <= d.revision) return
         d.preference = preference
+        d.accent = accent
+        d.density = density
+        d.showContextPanel = showContextPanel
         d.revision = revision
       },
     },

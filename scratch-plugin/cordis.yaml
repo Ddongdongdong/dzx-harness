@@ -1,0 +1,24 @@
+- id: tools
+  disabled: true
+
+- insert:
+    - id: tutorial-tools-source
+      name: 'E:/deep/deepseek-harness/packages/core/tools/src/index.ts'
+    - id: tutorial-hello
+      name: 'E:/deep/deepseek-harness/scratch-plugin/src/hello.ts'
+    - id: tutorial-tool-logger
+      name: 'E:/deep/deepseek-harness/scratch-plugin/tmp/cordis-tutorial/tool-logger.ts'
+    - id: tutorial-greet-tool
+      name: 'E:/deep/deepseek-harness/scratch-plugin/tmp/cordis-tutorial/greet-tools.ts'
+    - id: tutorial-current-project
+      name: 'E:/deep/deepseek-harness/scratch-plugin/src/current-project.ts'
+    - id: tutorial-system-status
+      name: 'E:/deep/deepseek-harness/scratch-plugin/src/system-status.ts'
+    - id: tutorial-tool-permission
+      name: 'E:/deep/deepseek-harness/scratch-plugin/src/tool-permission.ts'
+      config:
+        protectedTools:
+          - current_project
+          - system_status
+    - id: tutorial-runtime-status-ui
+      name: 'E:/deep/deepseek-harness/scratch-plugin/ui-runtime-status/index.js'

@@ -38,6 +38,10 @@ interface SessionStatsTotals {
   llmMs: number
   /** Summed matched tool call→result wall time, ms. */
   toolMs: number
+  /** Settled top-level tool calls. */
+  toolCalls: number
+  /** Settled top-level tool calls marked as errors. */
+  toolErrors: number
   /** Summed first-token latency over `ttftSteps`, ms. */
   ttftMs: number
   /** Steps carrying a recorded first token. */
@@ -74,6 +78,8 @@ const sessionStatsSchema = z.object({
   steps: z.number().int().nonnegative(),
   llmMs: z.number().nonnegative(),
   toolMs: z.number().nonnegative(),
+  toolCalls: z.number().int().nonnegative(),
+  toolErrors: z.number().int().nonnegative(),
   ttftMs: z.number().nonnegative(),
   ttftSteps: z.number().int().nonnegative(),
   decodeMs: z.number().nonnegative(),
@@ -112,13 +118,15 @@ function usageOutputTokens(usage: unknown): number | null {
 /** The `sessionStats` unit registered on `ctx.sessionProjections` (exported for the unit spec). */
 export const sessionStatsProjectionDefinition = {
   key: 'sessionStats',
-  stateVersion: 1,
+  stateVersion: 2,
   stateSchema: sessionStatsStateSchema,
   init: () => ({
     turns: 0,
     steps: 0,
     llmMs: 0,
     toolMs: 0,
+    toolCalls: 0,
+    toolErrors: 0,
     ttftMs: 0,
     ttftSteps: 0,
     decodeMs: 0,
@@ -173,11 +181,17 @@ export const sessionStatsProjectionDefinition = {
         // function that would poison toolMs with NaN.
         const callId = event.data.message.source.callId
         const dispatched = Object.hasOwn(state.pendingCalls, callId) ? state.pendingCalls[callId] : undefined
-        if (dispatched === undefined) return state
+        const isError = event.data.message.content.some(block => block.isError)
+        const settled = {
+          ...state,
+          toolCalls: state.toolCalls + 1,
+          toolErrors: state.toolErrors + (isError ? 1 : 0),
+        }
+        if (dispatched === undefined) return settled
         const pendingCalls = Object.fromEntries(
           Object.entries(state.pendingCalls).filter(([id]) => id !== callId),
         )
-        return { ...state, toolMs: state.toolMs + Math.max(0, event.time - dispatched), pendingCalls }
+        return { ...settled, toolMs: state.toolMs + Math.max(0, event.time - dispatched), pendingCalls }
       }
       case 'step/end':
         return {
@@ -203,6 +217,8 @@ export const sessionStatsProjectionDefinition = {
       steps: state.steps,
       llmMs: state.llmMs,
       toolMs: state.toolMs,
+      toolCalls: state.toolCalls,
+      toolErrors: state.toolErrors,
       ttftMs: state.ttftMs,
       ttftSteps: state.ttftSteps,
       decodeMs: state.decodeMs,

@@ -40,6 +40,9 @@
 - text: m1 7/25 {{clock}}
 - button "Copy":
   - img
+- button "1 tool call":
+  - text: 1 tool call
+  - img
 - paragraph: r1
 - button "Copy":
   - img
@@ -468,6 +471,6 @@
   - text: DeepSeek-V4-Flash
   - img
 - button "Send message" [disabled]
-- button "28 turns 28 steps":
+- button "28 turns 29 steps":
   - img
-  - text: 28 turns 28 steps
+  - text: 28 turns 29 steps

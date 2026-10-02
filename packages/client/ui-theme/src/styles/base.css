@@ -12,4 +12,60 @@
   --ds-transition-duration: 0.2s;
   --ds-transition-duration-fast: 0.1s;
   --ds-transition-duration-slow: 0.3s;
+
+  /* Arden product tokens. Feature CSS consumes these semantic values and
+     keeps the existing --dsw aliases as the compatibility layer. */
+  --arden-font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --arden-radius-sm: 8px;
+  --arden-radius-md: 12px;
+  --arden-radius-lg: 18px;
+  --arden-radius-xl: 24px;
+  --arden-space-1: 4px;
+  --arden-space-2: 8px;
+  --arden-space-3: 12px;
+  --arden-space-4: 16px;
+  --arden-space-5: 24px;
+  --arden-space-6: 32px;
+  --arden-shadow-soft: 0 12px 40px rgba(42, 37, 30, 0.06);
 }
+
+body {
+  --arden-background: #fbfaf7;
+  --arden-sidebar: #f6f4ef;
+  --arden-surface: #fffefa;
+  --arden-surface-hover: #f1eee7;
+  --arden-border: rgba(54, 49, 42, 0.11);
+  --arden-text-primary: #24221f;
+  --arden-text-secondary: #66615a;
+  --arden-text-muted: #979088;
+  --arden-palette-graphite: #37342f;
+  --arden-palette-sage: #496958;
+  --arden-palette-terracotta: #8c513b;
+  --arden-palette-plum: #66506f;
+  --arden-accent: var(--arden-palette-graphite);
+  --arden-accent-foreground: #fff;
+  --arden-success: #55b976;
+}
+
+body[data-ds-dark-theme] {
+  --arden-background: #1d1c1a;
+  --arden-sidebar: #24221f;
+  --arden-surface: #292724;
+  --arden-surface-hover: #34312d;
+  --arden-border: rgba(255, 251, 242, 0.12);
+  --arden-text-primary: #f3efe7;
+  --arden-text-secondary: #c4bdb3;
+  --arden-text-muted: #918a81;
+  --arden-palette-graphite: #f3efe7;
+  --arden-palette-sage: #9fc8ad;
+  --arden-palette-terracotta: #dfa48b;
+  --arden-palette-plum: #c4a2cf;
+  --arden-accent: var(--arden-palette-graphite);
+  --arden-accent-foreground: #24221f;
+  --arden-success: #6ac88a;
+  --arden-shadow-soft: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+body[data-arden-accent='sage'] { --arden-accent: var(--arden-palette-sage); --arden-success: #5f9a75; }
+body[data-arden-accent='terracotta'] { --arden-accent: var(--arden-palette-terracotta); --arden-success: #a46c52; }
+body[data-arden-accent='plum'] { --arden-accent: var(--arden-palette-plum); --arden-success: #82658d; }

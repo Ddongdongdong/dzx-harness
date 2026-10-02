@@ -4,7 +4,7 @@
   grid-template-rows: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--dsw-alias-bg-base);
+  background: var(--arden-background, var(--dsw-alias-bg-base));
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */
   transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out);
@@ -57,8 +57,8 @@
 .sidebarCol {
   min-width: 0;
   overflow: hidden;
-  background: var(--dsw-specific-sidebar-fill);
-  border-right: 0.5px solid var(--dsw-alias-border-l3);
+  background: var(--arden-sidebar, var(--dsw-specific-sidebar-fill));
+  border-right: 0.5px solid var(--arden-border, var(--dsw-alias-border-l3));
 }
 
 .centerCol {
@@ -66,6 +66,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--arden-background, var(--dsw-alias-bg-base));
 }
 
 /* macOS desktop: the frame goes transparent so window vibrancy reaches the

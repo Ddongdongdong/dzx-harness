@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package gives clients whole-session turn and step counts plus LLM, tool, first-token, and decode wall times through the public `sessionStats` value. The figures come from the complete durable log, so paging and compaction do not change them. Use it when a client must display consistent conversation statistics across reloads and reduced history. When whole-session statistics are unavailable, clients can use window-scoped counting instead.
+This package gives clients whole-session turn, step, settled-tool, and tool-error counts plus LLM, tool, first-token, and decode wall times through the public `sessionStats` value. The figures come from the complete durable log, so paging and compaction do not change them. Use it when a client must display consistent conversation statistics across reloads and reduced history. When whole-session statistics are unavailable, clients can use window-scoped counting instead.
 
 ## Table of Contents
 
@@ -43,6 +43,8 @@ Mount the plugin beside the session store and the projection registry when clien
 | `steps` | Closed steps — completed, failed, cancelled, and max-tokens steps all count |
 | `llmMs` | Summed model wall time over steps that assembled a message |
 | `toolMs` | Summed matched `tool/call` → `tool/result` wall time |
+| `toolCalls` | Settled top-level tool calls, counted from durable `tool/result` events |
+| `toolErrors` | Settled top-level tool calls whose durable result is marked as an error |
 | `ttftMs` / `ttftSteps` | Summed first-token latency and the steps carrying it |
 | `decodeMs` / `decodeTokens` | Summed decode wall time and provider output tokens over usage-reporting steps |
 
@@ -76,7 +78,7 @@ The unit is a pure fold over committed session events: `step/end` is the counted
 
 ### Data model
 
-The fold state holds the eight totals plus in-flight boundaries: `lastTurn` (turn of the last counted `step/end`), `openStep` (the open step's boundary facts, closed by its `assistant/message`), and `pendingCalls` (tool dispatch times by callId). The wire view is a strict subset — the eight totals — so the persisted-cache state schema extends the view schema with the boundary fields.
+The fold state holds the ten totals plus in-flight boundaries: `lastTurn` (turn of the last counted `step/end`), `openStep` (the open step's boundary facts, closed by its `assistant/message`), and `pendingCalls` (tool dispatch times by callId). The wire view is a strict subset — the ten totals — so the persisted-cache state schema extends the view schema with the boundary fields. State version 2 adds the tool counters; an older projection cache is rebuilt from the Session log.
 
 ### Fold rules
 
@@ -84,6 +86,7 @@ The fold state holds the eight totals plus in-flight boundaries: `lastTurn` (tur
 - First-token latency records the first non-empty delta chunk and survives an in-step `llm/retry`.
 - Decode time and tokens accrue only over steps carrying both a first token and a valid provider usage report; malformed usage is ignored like the window fold guards node usage.
 - Tool time pairs `tool/call` → `tool/result` by callId; unresolved calls are dropped at `turn/end` because results land within their turn, and a callId colliding with an `Object` prototype name reads as unmatched.
+- Tool counts accrue from every durable `tool/result`, including synthetic recovery results without a matching call; `toolErrors` follows the result block's `isError` flag.
 
 </details>
 
@@ -119,6 +122,7 @@ These limits define what the figures describe and when the unit is absent. They 
 - **Steps count work attempted, not visible output** — a step that failed before producing visible content still closes with `step/end` and counts; a step interrupted by a crash counts after the session reloads, when crash recovery appends its synthetic `step/end`.
 - **A cancelled step is counted but untimed** — no assistant message assembles, so its partial stream time enters no wall-time figure; a max-tokens usage-host message conversely contributes model time the surface does not show.
 - **Counts are log-scoped, not surface-scoped** — steps whose messages were later compacted away stay counted; the figures describe the whole session, not the current model-visible surface.
+- **Tool calls are counted when settled** — an in-flight call has no `tool/result` and does not count until it settles; crash recovery can append an error result for work that never started, and that durable outcome counts as both a tool call and a tool error.
 - **Mounted only where the projection registry is composed** — other assemblies serve no `sessionStats` key, and their consumers fall back to window-scoped counting.
 
 <a id="dev-note"></a>

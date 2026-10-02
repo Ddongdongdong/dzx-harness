@@ -3,8 +3,9 @@
  * document — `html { color-scheme }` for native UA chrome (scrollbars, form
  * controls), `body[data-ds-dark-theme]` for the token palette, the active
  * theme's alias-token overrides as inline CSS variables on body, the content
- * font-size axis (`--dsh-content-font-size`), `html[data-ds-theme-source]`
- * for native-chrome mirroring, and one presenter-owned
+ * font-size axis (`--dsh-content-font-size`), Arden accent, density, and
+ * context-panel attributes, `html[data-ds-theme-source]` for native-chrome
+ * mirroring, and one presenter-owned
  * `meta[name="theme-color"]` for surrounding browser UI. Pure DOM writes, no
  * React involvement; the presenter only ever retracts what it wrote itself,
  * so foreign attributes, metadata, and inline styles survive.
@@ -25,6 +26,12 @@ export const THEME_SOURCE_ATTRIBUTE = 'data-ds-theme-source'
 
 /** Body variable carrying the user's content font size in px. */
 export const CONTENT_FONT_SIZE_VARIABLE = '--dsh-content-font-size'
+/** Body attribute selecting the Arden emphasis palette. */
+export const ARDEN_ACCENT_ATTRIBUTE = 'data-arden-accent'
+/** Body attribute selecting the application spacing density. */
+export const ARDEN_DENSITY_ATTRIBUTE = 'data-arden-density'
+/** Body attribute controlling the wide-screen home context panel. */
+export const ARDEN_CONTEXT_PANEL_ATTRIBUTE = 'data-arden-context-panel'
 
 /** Applies theme snapshots to the document; one instance per plugin fiber. */
 export class ThemePresenter {
@@ -57,6 +64,9 @@ export class ThemePresenter {
     if (scheme === 'dark') body.setAttribute(DARK_ATTRIBUTE, '')
     else body.removeAttribute(DARK_ATTRIBUTE)
     body.style.setProperty(CONTENT_FONT_SIZE_VARIABLE, `${snapshot.fontSize}px`)
+    body.setAttribute(ARDEN_ACCENT_ATTRIBUTE, snapshot.accent)
+    body.setAttribute(ARDEN_DENSITY_ATTRIBUTE, snapshot.density)
+    body.setAttribute(ARDEN_CONTEXT_PANEL_ATTRIBUTE, snapshot.showContextPanel ? 'visible' : 'hidden')
     for (const name of this.appliedTokens) body.style.removeProperty(name)
     this.appliedTokens = []
     for (const [name, value] of Object.entries(snapshot.active.tokens)) {
@@ -68,8 +78,9 @@ export class ThemePresenter {
   }
 
   /**
-   * Retract root color-scheme, the theme-source attribute, the palette
-   * attribute, token variables, the font-size axis, and the owned metadata node.
+   * Retract root color-scheme, the theme-source attribute, the palette and
+   * Arden attributes, token variables, the font-size axis, and the owned
+   * metadata node.
    */
   dispose(): void {
     document.documentElement.style.removeProperty('color-scheme')
@@ -77,6 +88,9 @@ export class ThemePresenter {
     const body = document.body
     body.removeAttribute(DARK_ATTRIBUTE)
     body.style.removeProperty(CONTENT_FONT_SIZE_VARIABLE)
+    body.removeAttribute(ARDEN_ACCENT_ATTRIBUTE)
+    body.removeAttribute(ARDEN_DENSITY_ATTRIBUTE)
+    body.removeAttribute(ARDEN_CONTEXT_PANEL_ATTRIBUTE)
     for (const name of this.appliedTokens) body.style.removeProperty(name)
     this.appliedTokens = []
     this.themeColorMeta.remove()

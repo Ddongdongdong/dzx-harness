@@ -11,7 +11,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 6px var(--dsh-sidebar-inline-padding);
+  padding: 10px var(--dsh-sidebar-inline-padding) 12px;
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
   color: var(--dsw-alias-label-primary);
@@ -30,7 +30,7 @@
 
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
-   the whale's box (24px to the 24-wide whale glyph itself). */
+   the product mark's box (24px to the 24-wide glyph itself). */
 .root.collapsed {
   padding: 18px 10px 6px;
 }
@@ -209,9 +209,9 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  height: 60px;
-  padding: 8px 0 8px 4px;
-  margin-bottom: 8px;
+  height: 72px;
+  padding: 10px 0 10px 4px;
+  margin-bottom: 10px;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -245,8 +245,8 @@
 .brandIdentity {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 24px;
+  gap: 10px;
+  height: 38px;
   min-width: 0;
 }
 
@@ -262,7 +262,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  height: 24px;
+  height: 38px;
   font-size: 18px;
   font-weight: 600;
   line-height: 24px;
@@ -275,6 +275,35 @@
   white-space: nowrap;
 }
 
+.ardenBrand,
+.brandName > :global(span) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  line-height: 1;
+}
+
+.ardenBrand strong,
+.brandName > :global(span) > :global(strong) {
+  color: var(--arden-text-primary, var(--dsw-alias-label-primary));
+  font-family: var(--arden-font-display, Georgia, serif);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.ardenBrand small,
+.brandName > :global(span) > :global(small) {
+  margin-top: 4px;
+  color: var(--arden-text-muted, var(--dsw-alias-label-caption));
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+}
+
 .localBuildBrand {
   flex: none;
   display: inline-flex;
@@ -282,14 +311,22 @@
   align-items: flex-start;
   justify-content: center;
   gap: 1px;
-  height: 24px;
+  height: 38px;
   white-space: nowrap;
 }
 
 .localBuildTitle {
-  font-size: 12px;
-  line-height: 13px;
+  font-family: var(--arden-font-display, Georgia, serif);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 17px;
   letter-spacing: 0;
+}
+
+.localBuildTagline {
+  color: var(--arden-text-muted, var(--dsw-alias-label-caption));
+  font-size: 8px;
+  line-height: 9px;
 }
 
 .iconButton {
@@ -320,7 +357,7 @@
   border-radius: 12px;
 }
 
-/* Rail logo swap: collapsed, the toggle rests as the whale mark (brand ink,
+/* Rail logo swap: collapsed, the toggle rests as the product mark (brand ink,
    no hover circle) and hovering reveals the panel icon — the expand
    affordance (figma sidebar-hover flow). Expanded it is a plain panel icon. */
 .collapsed .toggle .panelIcon {
@@ -375,9 +412,9 @@
   padding: 8px 16px;
   margin: 0 2px 12px;
   box-sizing: border-box;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: 12px;
-  background: var(--dsw-alias-button-elevated-fill);
+  border: 0.5px solid var(--arden-border, var(--dsw-alias-border-l3));
+  border-radius: var(--arden-radius-md, 12px);
+  background: var(--arden-surface, var(--dsw-alias-button-elevated-fill));
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   font-weight: 500;
@@ -445,13 +482,18 @@
   padding: 7px 8px;
   box-sizing: border-box;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--arden-radius-md, 12px);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
   line-height: 22px;
   text-align: left;
   cursor: pointer;
+}
+
+:global(body[data-arden-density='compact']) .panelRow {
+  min-height: 31px;
+  padding-block: 4px;
 }
 
 .panelRow:hover {

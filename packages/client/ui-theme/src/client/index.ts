@@ -24,16 +24,17 @@ import { createAppearanceRowStore, createFontSizeRowStore } from './settings-sto
 import { installThemeStyles } from './styles.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
 import {
-  DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, FONT_SIZE_FIELD, FONT_SIZE_MAX, FONT_SIZE_MIN,
-  isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
-  type ThemePreference, type ThemeSettings,
+  ACCENT_FIELD, CONTEXT_PANEL_FIELD, DEFAULT_ACCENT, DEFAULT_DENSITY, DEFAULT_FONT_SIZE,
+  DEFAULT_PREFERENCE, DEFAULT_SHOW_CONTEXT_PANEL, DENSITY_FIELD, FONT_SIZE_FIELD, FONT_SIZE_MAX,
+  FONT_SIZE_MIN, isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
+  type ArdenAccent, type ArdenDensity, type ThemePreference, type ThemeSettings,
 } from '../theme-settings.ts'
 
 export type { AppearanceRowComponentProps, AppearanceRowInjected } from './AppearanceRow.tsx'
 export type { FontSizeRowComponentProps, FontSizeRowInjected } from './FontSizeRow.tsx'
 export type { AppearanceRowState, FontSizeRowState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
-export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
+export type { ArdenAccent, ArdenDensity, ThemePreference, ThemeSettings } from '../theme-settings.ts'
 
 /** Namespace owning this feature's settings-row copy. */
 export const SETTINGS_NS = 'settings.theme'
@@ -82,6 +83,12 @@ export interface ThemeSnapshot {
   preference: ThemePreference
   /** Conversation content font size in px (integer within FONT_SIZE_MIN..FONT_SIZE_MAX). */
   fontSize: number
+  /** Arden emphasis palette. */
+  accent: ArdenAccent
+  /** Application spacing density. */
+  density: ArdenDensity
+  /** Whether the home context panel is visible on wide screens. */
+  showContextPanel: boolean
   /**
    * The resolved active theme (`system` resolved via prefers-color-scheme)
    * with override layers folded into its tokens (seq order, later layers win
@@ -161,6 +168,9 @@ export class ThemeRuntime {
   private themes: ThemeDefinition[] = [...BUILTIN_THEMES]
   private preference: ThemePreference
   private fontSize: number = bootstrapFontSize()
+  private accent: ArdenAccent = DEFAULT_ACCENT
+  private density: ArdenDensity = DEFAULT_DENSITY
+  private showContextPanel = DEFAULT_SHOW_CONTEXT_PANEL
   private revision = 0
   private snapshot: ThemeSnapshot
   private readonly media: MediaQueryList | undefined
@@ -254,13 +264,51 @@ export class ThemeRuntime {
     this.publish()
   }
 
+  /**
+   * Persist the Arden emphasis palette and publish the updated snapshot.
+   * @param accent - Built-in Arden accent id.
+   */
+  setAccent(accent: ArdenAccent): void {
+    if (this.accent === accent) return
+    this.accent = accent
+    void this.host.set(ACCENT_FIELD, accent)
+    this.publish()
+  }
+
+  /**
+   * Persist the application spacing density and publish the updated snapshot.
+   * @param density - Built-in Arden spacing-density id.
+   */
+  setDensity(density: ArdenDensity): void {
+    if (this.density === density) return
+    this.density = density
+    void this.host.set(DENSITY_FIELD, density)
+    this.publish()
+  }
+
+  /**
+   * Persist whether the wide-screen home context panel is visible.
+   * @param show - `true` to retain the auxiliary panel on wide screens.
+   */
+  setShowContextPanel(show: boolean): void {
+    if (this.showContextPanel === show) return
+    this.showContextPanel = show
+    void this.host.set(CONTEXT_PANEL_FIELD, show)
+    this.publish()
+  }
+
   /** Adopt the scope's accepted durable preference without writing it back. */
   private adopt(): void {
     const section = this.host.getSnapshot().value
     if (section === undefined) return
-    if (this.preference === section.preference && this.fontSize === section.fontSize) return
+    if (this.preference === section.preference && this.fontSize === section.fontSize
+      && this.accent === section.accent && this.density === section.density
+      && this.showContextPanel === section.showContextPanel) return
     this.preference = section.preference
     this.fontSize = section.fontSize
+    this.accent = section.accent
+    this.density = section.density
+    this.showContextPanel = section.showContextPanel
     this.publish()
   }
 
@@ -328,6 +376,9 @@ export class ThemeRuntime {
     return Object.freeze({
       preference: this.preference,
       fontSize: this.fontSize,
+      accent: this.accent,
+      density: this.density,
+      showContextPanel: this.showContextPanel,
       active: this.composeActive(active),
       themes: Object.freeze([...this.themes]),
       revision: this.revision,
@@ -438,7 +489,8 @@ export function apply(ctx: ClientContext): void {
   const fontSizeStore = createFontSizeRowStore()
   let fontSizeBound: BoundActions<typeof fontSizeStore> | undefined
   const sync = (snapshot: ThemeSnapshot): void => {
-    bound?.sync(snapshot.preference, snapshot.revision)
+    bound?.sync(snapshot.preference, snapshot.accent, snapshot.density,
+      snapshot.showContextPanel, snapshot.revision)
     fontSizeBound?.sync(snapshot.fontSize, snapshot.revision)
   }
   ctx.on('theme/change', sync)
@@ -449,6 +501,9 @@ export function apply(ctx: ClientContext): void {
     sync(theme.getTheme())
     return {
       setTheme: (id) => { theme.setTheme(id) },
+      setAccent: (accent) => { theme.setAccent(accent) },
+      setDensity: (density) => { theme.setDensity(density) },
+      setShowContextPanel: (show) => { theme.setShowContextPanel(show) },
     }
   }
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({

@@ -108,11 +108,11 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
             >
               <svg
                 aria-hidden="true"
-                data-content="965fe321"
+                data-content="8232bb07"
                 fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
-                width="24"
+                height="28"
+                viewBox="0 0 32 32"
+                width="28"
               />
             </div>
           </span>
@@ -129,7 +129,12 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
                 <span
                   class="localBuildTitle"
                 >
-                  DSH Local Build
+                  Arden
+                </span>
+                <span
+                  class="localBuildTagline"
+                >
+                  Your AI Dev Companion
                 </span>
                 <span
                   class="buildVersion"
@@ -235,10 +240,10 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           >
             <svg
               aria-hidden="true"
-              data-content="965fe321"
+              data-content="8232bb07"
               fill="none"
-              height="17.6580310880829"
-              viewBox="0 0 23.16 17.04"
+              height="24"
+              viewBox="0 0 32 32"
               width="24"
             />
           </div>
@@ -334,11 +339,11 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             >
               <svg
                 aria-hidden="true"
-                data-content="965fe321"
+                data-content="8232bb07"
                 fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
-                width="24"
+                height="28"
+                viewBox="0 0 32 32"
+                width="28"
               />
             </div>
           </span>
@@ -355,7 +360,12 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
                 <span
                   class="localBuildTitle"
                 >
-                  DSH Local Build
+                  Arden
+                </span>
+                <span
+                  class="localBuildTagline"
+                >
+                  Your AI Dev Companion
                 </span>
                 <span
                   class="buildVersion"
@@ -464,11 +474,11 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             >
               <svg
                 aria-hidden="true"
-                data-content="965fe321"
+                data-content="8232bb07"
                 fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
-                width="24"
+                height="28"
+                viewBox="0 0 32 32"
+                width="28"
               />
             </div>
           </span>
@@ -485,7 +495,12 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
                 <span
                   class="localBuildTitle"
                 >
-                  DSH 本地构建
+                  Arden
+                </span>
+                <span
+                  class="localBuildTagline"
+                >
+                  你的 AI 开发伙伴
                 </span>
                 <span
                   class="buildVersion"

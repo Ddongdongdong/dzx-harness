@@ -58,9 +58,10 @@
      soft elevation tier. Fill: the input surface token (elevated in dark). */
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
-  border-radius: 22px;
-  background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-soft);
+  border: none;
+  border-radius: var(--arden-radius-xl, 22px);
+  background: var(--arden-surface, var(--dsw-specific-input-major));
+  box-shadow: var(--arden-shadow-soft, var(--dsw-elevation-soft));
   /* The draft text follows the Settings font-size preference (the textarea,
      mirror, and backdrop all inherit from here, so the three layers stay in
      step); the line height keeps the default 10px leading via the shared px
@@ -367,10 +368,8 @@
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-button-info-fill);
-  /* Static white, not the foreground token: the arrow stays white on the blue
-     fill in both themes (design 34:10465). */
-  color: #fff;
+  background: var(--arden-accent, var(--dsw-alias-button-info-fill));
+  color: var(--arden-accent-foreground, #fff);
   cursor: pointer;
   transition: background-color 100ms ease;
   /* Opts out of the row's 2px downward shift (.row top pad): the send circle
@@ -380,7 +379,7 @@
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--dsw-alias-button-info-hover);
+  background: color-mix(in srgb, var(--arden-accent, var(--dsw-alias-button-info-hover)) 84%, white);
 }
 
 .primary:disabled {

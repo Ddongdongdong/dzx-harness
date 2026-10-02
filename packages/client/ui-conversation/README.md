@@ -52,6 +52,8 @@ The package occupies the root-scoped `main` key `conversation`. Its `main.conver
 
 A blank Session retains the header's leading and corner controls, including the right-sidebar opener, while hiding its title, actions, utilities, and View tabs. Selecting a Workspace creates the Session needed by these controls; the first message is not required. Without a selected Session, the strict header is absent. Sidebar entries retain their own data and execution prerequisites.
 
+The blank-Session home presents the Arden heading, four prompt starters, suggested prompts, and the resident composer. Prompt starters write into the existing draft without sending it. The auxiliary panel reads the selected Workspace and recent non-subagent Session summaries; its model card points to the existing composer selector instead of duplicating model state, and the panel hides at narrower desktop widths to preserve the primary workspace.
+
 View selection is deterministic: a registered persisted selection wins, otherwise registered `chat` wins, otherwise no View renders. It never chooses the first registered View. Shell phase combines Session lifecycle with the active-target set; no target-specific snapshot is read by the shell.
 
 The shell reads the persisted View preference before rendering when a Session first binds or a cached Session becomes current, activates the registered preferred View or Chat fallback, and activates later tab or focus selections before committing them to the store. A blank Session still omits the `conversation.view` slot; no unselected target is activated.

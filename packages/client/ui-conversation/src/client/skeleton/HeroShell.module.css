@@ -1,184 +1,276 @@
-/* NEW SESSION hero (figma Input_Bottom 75:8208): fish + title, workspace chip
-   above the shared InputBar card. The input itself is InputBar — only stack
-   geometry and the chip live here. */
-
 .root {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  gap: clamp(28px, 4vw, 64px);
   align-items: center;
-  justify-content: center;
-  height: 100%;
+  width: min(1180px, 100%);
   min-width: 0;
-  padding: 0 24px;
+  margin: 0 auto;
+  padding: 28px clamp(24px, 4vw, 64px) 18px;
+  box-sizing: border-box;
 }
 
-/* Cap matches the InputBar card. Glow may paint past the sides. */
-.stack {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  /* figma 75:8208: 12 between title block / workspace / card. */
-  gap: 12px;
-  width: 100%;
-  max-width: var(--dsh-composer-card-max-width);
-  overflow: visible;
-}
-
-/* figma 34:10411: fish + title, gap 10, centered; 26/32 wt500. The preview
-   badge is a product addition outside that source: a mono superscript pill
-   riding the title's top-right. */
-.headline {
-  display: flex;
-  /* Overflow-driven: the fish and the title group are two wrap units sharing
-     one centered line while they fit; squeezed, the fish takes its own line
-     above the group. No breakpoint. */
-  flex-wrap: wrap;
-  column-gap: 10px;
-  /* Wrapped, the fish sits on its own line; more air than the 10px side gap
-     keeps it reading as a mark above the title, not a squeezed inline glyph. */
-  row-gap: 12px;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  line-height: 32px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
-}
-
-/* Title text + badge as one wrap unit so the title never breaks mid-text with
-   the badge stranded beside a fragment. When the badge no longer fits beside
-   the title it wraps to its own centered line below; while both fit, the group
-   is content-sized and centering is a no-op, keeping the superscript snug. */
-.titleGroup {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  /* Superscript sits 7 from the title. */
-  column-gap: 7px;
-  row-gap: 4px;
+.main {
   min-width: 0;
 }
 
-.previewBadge {
-  align-self: flex-start;
-  margin-top: 2px;
-  padding: 1px 7px 0;
-  border: 0.5px solid var(--dsw-alias-interactive-bg-hover);
-  border-radius: 24px;
-  background: var(--dsw-alias-state-business-tertiary);
-  color: var(--dsw-alias-label-primary-bluish);
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-/* Keep hover detection on a stationary box while the mark moves within it;
-   hover rules target the hitbox so a slot-occupant mark swims too. */
-.fishHitbox {
-  display: inline-flex;
-  flex: none;
+.eyebrow {
+  display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--arden-text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.24em;
 }
 
-/* The swim morph's curves poke slightly past the viewBox edges, so clipping
-   would slice the tail mid-wag. The hero mark stays in the same primary ink
-   as its headline. */
-.fish {
+.heroMark {
   display: block;
-  overflow: visible;
-  transform-origin: 50% 60%;
-  color: var(--dsw-alias-label-primary);
+  color: var(--arden-text-primary);
 }
 
-/* Hover swim: a slow continuous sway about the body center — the head
-   (left) lifts as the whale rises, then settles back with a small
-   counter-tilt, like treading water. Negative rotation = head up (the head
-   is the left half; origin 50% 60%). */
-@keyframes hero-fish-swim {
-  0%,
-  100% {
-    transform: none;
-  }
-
-  35% {
-    transform: rotate(-4deg) translate(-0.4px, -0.9px);
-  }
-
-  70% {
-    transform: rotate(1.6deg) translate(0.3px, 0.2px);
-  }
-}
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .fishHitbox:hover .fish {
-    animation: hero-fish-swim 1.6s ease-in-out infinite;
-  }
-}
-
-/* Workspace row sits 12px above the input card (figma y80 → y112). */
-.body {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  overflow: visible;
-}
-
-.body > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* Must beat `.body > :not(.glow)` specificity so the open Menu (and its
-   right-hand submenu) paints above the InputBar card. */
-.body > .workspaceRow {
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  /* figma 75:8208 workspace row: px 8 above the card. */
-  padding-left: 8px;
-}
-
-/* Folder + label + chevron — transparent at rest; fill only on hover / open.
-   Overflow-driven degradation, no breakpoint: the label shrinks with an
-   ellipsis down to nothing, so folder and chevron always sit snug against
-   whatever text remains — full text, ellipsized text, or none. */
-.workspace {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: min(100%, 360px);
-  min-height: 28px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 16px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
+.main h1 {
+  margin: 0;
+  color: var(--arden-text-primary);
+  font-family: var(--arden-font-display);
+  font-size: clamp(38px, 5vw, 64px);
   font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+
+.subtitle {
+  max-width: 590px;
+  margin: 14px 0 26px;
+  color: var(--arden-text-secondary);
+  font-size: clamp(15px, 1.5vw, 18px);
+  line-height: 1.55;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.actionCard {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 78px;
+  padding: 14px;
+  border: 1px solid var(--arden-border);
+  border-radius: var(--arden-radius-lg);
+  background: color-mix(in srgb, var(--arden-surface) 92%, transparent);
+  color: var(--arden-text-primary);
+  text-align: left;
   cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
 }
 
-.workspace:not(:disabled):hover,
-.workspace[aria-expanded='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
+:global(body[data-arden-density='compact']) .root {
+  gap: clamp(20px, 3vw, 42px);
+  padding-top: 18px;
 }
 
-/* Locked form (bound guidance state): a static echo — no hover feedback, no
-   pointer affordance; label keeps full contrast. */
-.workspace:disabled {
+:global(body[data-arden-density='compact']) .actionCard {
+  min-height: 64px;
+  padding: 10px 12px;
+}
+
+:global(body[data-arden-density='compact']) .subtitle { margin-bottom: 18px; }
+:global(body[data-arden-context-panel='hidden']) .aside { display: none; }
+:global(body[data-arden-context-panel='hidden']) .root { grid-template-columns: minmax(0, 1fr); }
+
+.actionCard:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--arden-text-muted) 36%, transparent);
+  background: var(--arden-surface);
+  transform: translateY(-1px);
+}
+
+.actionCard:focus-visible,
+.suggestions button:focus-visible,
+.workspace:focus-visible {
+  outline: 2px solid var(--arden-accent);
+  outline-offset: 2px;
+}
+
+.actionCard:disabled,
+.suggestions button:disabled {
   cursor: default;
 }
 
-.folder {
+.actionIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--arden-radius-md);
+  background: var(--arden-surface-hover);
+}
+
+.actionCard strong,
+.actionCard small {
+  display: block;
+}
+
+.actionCard strong {
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.actionCard small {
+  overflow: hidden;
+  color: var(--arden-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionArrow {
+  color: var(--arden-text-muted);
+  font-size: 18px;
+}
+
+.suggestions {
+  margin-top: 22px;
+}
+
+.suggestions > span,
+.cardLabel {
+  color: var(--arden-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.suggestions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.suggestions button {
+  min-height: 30px;
+  padding: 5px 11px;
+  border: 1px solid var(--arden-border);
+  border-radius: 999px;
+  corner-shape: round;
+  background: transparent;
+  color: var(--arden-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.suggestions button:hover:not(:disabled) {
+  background: var(--arden-surface-hover);
+  color: var(--arden-text-primary);
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.contextCard {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--arden-border);
+  border-radius: var(--arden-radius-lg);
+  background: color-mix(in srgb, var(--arden-surface) 76%, transparent);
+}
+
+.contextCard strong {
+  overflow: hidden;
+  color: var(--arden-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contextCard small {
+  overflow: hidden;
+  color: var(--arden-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activityList li {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  color: var(--arden-text-secondary);
+  font-size: 11px;
+}
+
+.activityList li > span:first-child {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: color-mix(in srgb, var(--arden-text-muted) 45%, transparent);
+}
+
+.activityList li > span:first-child[data-running] {
+  background: var(--arden-success);
+}
+
+.activityList li > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(100%, 420px);
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--arden-border);
+  border-radius: 999px;
+  corner-shape: round;
+  background: color-mix(in srgb, var(--arden-surface) 86%, transparent);
+  color: var(--arden-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workspace:hover,
+.workspace[aria-expanded='true'] {
+  background: var(--arden-surface-hover);
+  color: var(--arden-text-primary);
+}
+
+.folder,
+.chevron {
   flex: none;
-  color: var(--dsw-alias-label-primary);
 }
 
 .workspaceLabel {
@@ -188,44 +280,45 @@
   white-space: nowrap;
 }
 
-.chevron {
-  flex: none;
-  color: var(--dsw-alias-label-caption);
-}
-
-/* Dialog field: 44 tall on the modal's 332 content column, r22, hairline
-   border, pad 14/7, 14/22 wt400 primary text, caption placeholder. Focus
-   keeps the resting border (design shows no focus ring). */
 .modalInput {
   box-sizing: border-box;
   width: 100%;
   height: 44px;
   padding: 7px 14px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
+  border: 1px solid var(--arden-border);
   border-radius: 22px;
   outline: none;
   background: transparent;
+  color: var(--arden-text-primary);
   font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
 }
 
-.modalInput::placeholder {
-  color: var(--dsw-alias-label-caption);
+.modalAction { min-width: 72px; }
+.modalError { margin-top: 8px; color: var(--dsw-alias-state-error-primary); font-size: 12px; }
+
+@media (max-width: 1180px) {
+  .root {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .aside {
+    display: none;
+  }
 }
 
-.modalInput:disabled {
-  color: var(--dsw-alias-label-dimmed);
+@media (max-width: 920px) {
+  .root {
+    padding-top: 40px;
+  }
 }
 
-.modalAction {
-  min-width: 72px;
+@media (max-width: 640px) {
+  .root { padding-inline: 16px; }
+  .actionGrid { grid-template-columns: minmax(0, 1fr); }
+  .main h1 { font-size: 38px; }
 }
 
-.modalError {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-error-primary);
+@media (prefers-reduced-motion: reduce) {
+  .actionCard { transition: none; }
 }

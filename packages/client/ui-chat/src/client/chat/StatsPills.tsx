@@ -29,6 +29,10 @@ interface WindowStats {
   llmMs: number
   /** Summed tool wall time (tool/call → tool/result); 0 when no pair is in-window. */
   toolMs: number
+  /** Settled tool calls visible in the current window. */
+  toolCalls: number
+  /** Settled tool calls marked as errors in the current window. */
+  toolErrors: number
   /** Summed first-token latency over `ttftSteps`; 0 when no step records it. */
   ttftMs: number
   /** Steps carrying a recorded TTFT. */
@@ -56,12 +60,16 @@ export function deriveStats(nodes: ChatSnapshot['legacy']['nodes']): WindowStats
   let steps = 0
   let llmMs = 0
   let toolMs = 0
+  let toolCalls = 0
+  let toolErrors = 0
   let ttftMs = 0
   let ttftSteps = 0
   let decodeMs = 0
   let decodeTokens = 0
   for (const node of nodes) {
     if (node.kind === 'tool-result') {
+      toolCalls += 1
+      if (node.isError) toolErrors += 1
       if (node.callTime !== null) toolMs += Math.max(0, node.time - node.callTime)
       continue
     }
@@ -81,7 +89,18 @@ export function deriveStats(nodes: ChatSnapshot['legacy']['nodes']): WindowStats
       decodeTokens += reading.outputTokens
     }
   }
-  return { turns: turns.size, steps, llmMs, toolMs, ttftMs, ttftSteps, decodeMs, decodeTokens }
+  return {
+    turns: turns.size,
+    steps,
+    llmMs,
+    toolMs,
+    toolCalls,
+    toolErrors,
+    ttftMs,
+    ttftSteps,
+    decodeMs,
+    decodeTokens,
+  }
 }
 
 /**
@@ -158,9 +177,10 @@ function TimePill({ stats, t, dialog }: {
       )}
     </span>
   )
-  // A window without one timed figure has no dialog rows to show, so the pill
-  // stays a plain reading instead of a button opening an empty dialog.
-  if (stats.llmMs <= 0 && stats.toolMs <= 0 && stats.ttftSteps <= 0 && stats.decodeMs <= 0) {
+  // A window without one timed figure or settled tool call has no dialog rows,
+  // so the pill stays a plain reading instead of opening an empty dialog.
+  if (stats.llmMs <= 0 && stats.toolMs <= 0 && stats.toolCalls === 0
+    && stats.ttftSteps <= 0 && stats.decodeMs <= 0) {
     return (
       <span className={css.anchor}>
         <span className={css.pill}>
@@ -199,6 +219,18 @@ function TimePill({ stats, t, dialog }: {
           </div>
           <div className={dialogCss.titleRule} aria-hidden />
           <dl className={dialogCss.details} data-session-stats-details>
+            {stats.toolCalls > 0 && (
+              <>
+                <dt>{t('stats.dialog.toolCalls')}</dt>
+                <dd>{stats.toolCalls}</dd>
+              </>
+            )}
+            {stats.toolErrors > 0 && (
+              <>
+                <dt>{t('stats.dialog.toolErrors')}</dt>
+                <dd>{stats.toolErrors}</dd>
+              </>
+            )}
             {stats.llmMs > 0 && (
               <>
                 <dt>{t('stats.dialog.llmTime')}</dt>

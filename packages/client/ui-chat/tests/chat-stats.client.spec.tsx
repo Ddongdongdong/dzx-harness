@@ -61,7 +61,10 @@ describe('deriveStats', () => {
     // tokenUsage projection); decodeTokens is a throughput input, not a
     // billed total.
     expect(Object.keys(stats).sort()).toEqual(
-      ['decodeMs', 'decodeTokens', 'llmMs', 'steps', 'toolMs', 'ttftMs', 'ttftSteps', 'turns'],
+      [
+        'decodeMs', 'decodeTokens', 'llmMs', 'steps', 'toolCalls', 'toolErrors', 'toolMs',
+        'ttftMs', 'ttftSteps', 'turns',
+      ],
     )
   })
 
@@ -73,6 +76,8 @@ describe('deriveStats', () => {
     const stats = deriveStats([tool, assistant(1, 1)])
     expect(stats.steps).toBe(1)
     expect(stats.toolMs).toBe(0)
+    expect(stats.toolCalls).toBe(1)
+    expect(stats.toolErrors).toBe(0)
   })
 
   it('sums LLM wall time from assistant timing and tool wall time from call/result pairs', () => {
@@ -132,6 +137,7 @@ describe('StatsPills', () => {
   function sessionStats(overrides: Record<string, number>): Record<string, number> {
     return {
       turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0,
+      toolCalls: 0, toolErrors: 0,
       ...overrides,
     }
   }
@@ -234,6 +240,18 @@ describe('StatsPills', () => {
     expect(details.textContent).toContain('Tokens per second (TPS)20 tok/s')
     // Token accounting lives on the usage pill's own dialog, not here.
     expect(dialog.textContent).not.toContain('Token usage')
+  })
+
+  it('renders whole-log settled and failed tool counts in the statistics dialog', () => {
+    const { source } = makeSource()
+    const view = render(<StatsPills {...props(source, {
+      sessionStats: sessionStats({ turns: 1, steps: 1, toolCalls: 4, toolErrors: 2 }),
+    })} />)
+    const timePill = view.getByRole('button')
+    fireEvent.click(timePill)
+    const dialog = view.getByRole('dialog')
+    expect(dialog.textContent).toContain('Tool calls4')
+    expect(dialog.textContent).toContain('Failed tool calls2')
   })
 
   it('click-opens the token-usage dialog carrying the headline total and exact buckets', () => {

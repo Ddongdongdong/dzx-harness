@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { ConversationContentProps, ConversationViewsProps, InputZone } from '../contract/slots.ts'
@@ -21,7 +21,7 @@ function NoConversationWidthControls() {
 export function ConversationContent(props: ConversationContentProps) {
   const {
     sessionId, phase, hero, useSession, useSessions, useSessionStatus,
-    useWorkspaces, useInput, useComposerBlock, renderSlot, renderSlotChain,
+    useWorkspaces, useInput, inputActions, useComposerBlock, renderSlot, renderSlotChain,
     selectWorkspace, t, useFactorySlot,
   } = props
   const session = useSession(snapshot => snapshot)
@@ -32,6 +32,7 @@ export function ConversationContent(props: ConversationContentProps) {
     sessionId === undefined ? undefined : snapshot.get(sessionId)?.pendingInteraction)
   const inputState = useInput(s => s)
   const cwd = useSessions(s => sessionId === undefined ? undefined : s.byId[sessionId]?.cwd)
+  const sessionList = useSessions(s => s)
   const workspaces = useWorkspaces(s => s)
   // A plugin this package cannot import (ui-model-selection) says this session cannot
   // send; its reason is already localized by whoever raised it.
@@ -101,6 +102,14 @@ export function ConversationContent(props: ConversationContentProps) {
           ? undefined
           : workspaceLabel(cwd)))
 
+  const recentSessions = useMemo(() => sessionList.ids
+    .map(id => sessionList.byId[id])
+    .filter((summary): summary is NonNullable<typeof summary> =>
+      summary !== undefined && !summary.blank && summary.origin !== 'subagent')
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, 4)
+    .map(summary => ({ title: summary.displayTitle, running: summary.running })), [sessionList])
+
   const heroWorkspaceRow = (
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
@@ -156,7 +165,18 @@ export function ConversationContent(props: ConversationContentProps) {
 
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
+      {hero && (
+        <HeroShell
+          t={t}
+          renderSlot={renderSlot}
+          workspaceTitle={pendingWorkspace?.title ?? sessionWorkspace?.title}
+          workspacePath={pendingWorkspace?.path ?? sessionWorkspace?.path ?? cwd}
+          recentSessions={recentSessions}
+          onPromptSelect={inputActions === undefined
+            ? undefined
+            : (prompt) => { inputActions.setDraft(prompt) }}
+        />
+      )}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}

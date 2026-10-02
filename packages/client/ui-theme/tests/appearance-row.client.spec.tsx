@@ -22,6 +22,17 @@ const COPY: Record<string, string> = {
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
   'appearance.system': 'System',
+  'customization.title': 'Personalize Arden',
+  'customization.accent': 'Accent',
+  'customization.graphite': 'Graphite',
+  'customization.sage': 'Sage',
+  'customization.terracotta': 'Terracotta',
+  'customization.plum': 'Plum',
+  'customization.density': 'Interface density',
+  'customization.comfortable': 'Comfortable',
+  'customization.compact': 'Compact',
+  'customization.contextPanel': 'Home context panel',
+  'customization.contextPanel.description': 'Show context',
 }
 
 function emptySessions() {
@@ -43,8 +54,11 @@ const useSessionStatus: AppearanceRowComponentProps['useSessionStatus'] = select
 function mount(preference: ThemePreference = 'system') {
   // Real store instance — the sanctioned zero-machinery path for tests.
   const store = createAppearanceRowStore().create()
-  store.actions.sync(preference, 0)
+  store.actions.sync(preference, 'graphite', 'comfortable', true, 0)
   const setTheme = vi.fn()
+  const setAccent = vi.fn()
+  const setDensity = vi.fn()
+  const setShowContextPanel = vi.fn()
   const props: AppearanceRowComponentProps = {
     useSessions: emptySessions(),
     useSessionStatus,
@@ -53,10 +67,10 @@ function mount(preference: ThemePreference = 'system') {
     useStore: bindSnapshotSelector(store),
     actions: store.actions,
     t: (key: string) => COPY[key] ?? key,
-    setTheme,
+    setTheme, setAccent, setDensity, setShowContextPanel,
   }
   render(<AppearanceRow {...props} />)
-  return { store, setTheme }
+  return { store, setTheme, setAccent, setDensity, setShowContextPanel }
 }
 
 const pressed = (name: RegExp): string | null =>
@@ -77,8 +91,18 @@ describe('AppearanceRow', () => {
     expect(b.setTheme).toHaveBeenCalledWith('light')
     // No store write yet: selection is unchanged.
     expect(pressed(/Dark/)).toBe('true')
-    act(() => { b.store.actions.sync('light', 1) })
+    act(() => { b.store.actions.sync('light', 'graphite', 'comfortable', true, 1) })
     expect(pressed(/Light/)).toBe('true')
     expect(pressed(/Dark/)).toBe('false')
+  })
+
+  it('routes customization controls through their durable writers', () => {
+    const b = mount()
+    fireEvent.click(screen.getByRole('button', { name: 'Sage' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Compact' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Home context panel/ }))
+    expect(b.setAccent).toHaveBeenCalledWith('sage')
+    expect(b.setDensity).toHaveBeenCalledWith('compact')
+    expect(b.setShowContextPanel).toHaveBeenCalledWith(false)
   })
 })

@@ -1,0 +1,21 @@
+# Opt-in active recall over the profile's durable Session corpus. The derived
+# SQLite index is separate from the append-only Session store and opens only
+# when the first accepted user step needs retrieval.
+- id: session-query-sqlite
+  config:
+    path: !!js dshHomePath('session-recall.sqlite')
+    openAt: first-search
+
+- insert:
+    - id: experimental-session-recall
+      name: '@deepseek-ai/dsh-experimental-session-recall'
+      config:
+        maxSourceCharacters: 12000
+        minTermCharacters: 2
+        maxTermCharacters: 80
+        maxQueryTerms: 6
+        perTermResults: 8
+        minMatchedTerms: 1
+        maxSessions: 3
+        timeoutMs: 5000
+        failureMode: continue

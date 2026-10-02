@@ -5,21 +5,27 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-settings'
 import { bootThemeInjections } from './boot-theme.ts'
 import {
-  DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, THEME_SETTINGS_NAMESPACE, ThemeSettingsSchema,
-  type ThemePreference, type ThemeSettings,
+  DEFAULT_ACCENT, DEFAULT_DENSITY, DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE,
+  DEFAULT_SHOW_CONTEXT_PANEL, THEME_SETTINGS_NAMESPACE, ThemeSettingsSchema,
+  type ThemeSettings,
 } from './theme-settings.ts'
 
 export {
-  DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, FONT_SIZE_FIELD, FONT_SIZE_MAX, FONT_SIZE_MIN,
-  THEME_PREFERENCE_FIELD, THEME_PREFERENCES, THEME_SETTINGS_NAMESPACE,
+  ACCENT_FIELD, ARDEN_ACCENTS, ARDEN_DENSITIES, CONTEXT_PANEL_FIELD, DEFAULT_ACCENT,
+  DEFAULT_DENSITY, DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, DEFAULT_SHOW_CONTEXT_PANEL,
+  DENSITY_FIELD, FONT_SIZE_FIELD, FONT_SIZE_MAX, FONT_SIZE_MIN, THEME_PREFERENCE_FIELD,
+  THEME_PREFERENCES, THEME_SETTINGS_NAMESPACE, type ArdenAccent, type ArdenDensity,
   type ThemePreference, type ThemeSettings,
 } from './theme-settings.ts'
 
 const THEME_NAMESPACE = THEME_SETTINGS_NAMESPACE
 
 /** Read the registered theme section or the schema defaults without a settings provider. */
-function readSection(ctx: Context): { preference: ThemePreference; fontSize: number } {
-  const fallback = { preference: DEFAULT_PREFERENCE, fontSize: DEFAULT_FONT_SIZE }
+function readSection(ctx: Context): ThemeSettings {
+  const fallback = {
+    preference: DEFAULT_PREFERENCE, fontSize: DEFAULT_FONT_SIZE, accent: DEFAULT_ACCENT,
+    density: DEFAULT_DENSITY, showContextPanel: DEFAULT_SHOW_CONTEXT_PANEL,
+  }
   const settings = ctx.get('settings')
   if (settings === undefined) return fallback
   const section = settings.get(THEME_NAMESPACE) as ThemeSettings | undefined
