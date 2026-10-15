@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DeepSeek Harness 面向开发者日常任务与调试的功能设计提案：10 项功能、交互样机、架构接入与验收标准。">
+  <title>DeepSeek Harness · 新增功能设计</title>
+  <style>
+    :root { color-scheme: light; --ink:#202623; --muted:#5d6863; --line:#dce2de; --paper:#fff; --bg:#f7f9f8; --green:#16745a; --soft:#e9f4ef; --blue:#3164a0; --blue-soft:#edf3fb; --red:#b23f4a; --red-soft:#fcedee; --amber:#875907; --amber-soft:#fbf3df; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; scroll-padding-top:28px; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; letter-spacing:0; }
+    button,input,select { font:inherit; }
+    button,select { cursor:pointer; }
+    button { color:inherit; }
+    a { color:var(--green); text-underline-offset:3px; }
+    :focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
+    button { border:1px solid var(--line); background:#fff; border-radius:5px; padding:7px 12px; line-height:1.4; }
+    button:hover { background:var(--bg); }
+    button.primary { color:#fff; background:var(--green); border-color:var(--green); }
+    button:disabled { cursor:default; opacity:.5; }
+    input[type=search],select { color:var(--ink); min-height:36px; border:1px solid #bec9c2; border-radius:4px; padding:6px 10px; background:#fff; max-width:100%; }
+    input[type=checkbox] { accent-color:var(--green); width:16px; height:16px; }
+    h1,h2,h3,h4,p { margin:0; }
+    h1 { font-size:30px; line-height:1.3; font-weight:700; }
+    h2 { font-size:23px; line-height:1.4; }
+    h3 { font-size:17px; line-height:1.5; }
+    h4 { font-size:14px; margin-bottom:5px; }
+    p+p { margin-top:10px; }
+    ul,ol { padding-left:20px; margin:8px 0; }
+    li { margin:5px 0; }
+    code { font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+    .muted { color:var(--muted); }
+    .small { font-size:12px; }
+    .mono { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .layout { display:grid; grid-template-columns:208px minmax(0,1fr); min-height:100vh; }
+    .sidebar { background:var(--bg); border-right:1px solid var(--line); padding:28px 22px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; gap:30px; }
+    .brand { font-size:19px; font-weight:750; line-height:1.35; }
+    .brand small { display:block; font-size:11px; font-weight:500; margin-top:8px; color:var(--muted); }
+    .sidebar nav { display:grid; gap:7px; }
+    .sidebar nav a { color:var(--muted); text-decoration:none; display:flex; gap:10px; align-items:center; padding:9px 0; font-size:13px; }
+    .sidebar nav a:hover { color:var(--green); }
+    .nav-n { width:20px; color:#87918b; font-size:11px; }
+    .sidebar-foot { margin-top:auto; font-size:12px; color:var(--muted); }
+    .sidebar-foot a { display:block; margin-bottom:14px; }
+    main { min-width:0; max-width:1420px; padding:30px 42px 50px; margin:0 auto; width:100%; }
+    .head-meta,.section-meta { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+    .head-meta { margin-bottom:17px; font-size:12px; color:var(--muted); }
+    .head-meta .stamp { display:flex; align-items:center; gap:12px; }
+    .badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:3px; font-size:11px; line-height:1.7; font-weight:600; white-space:nowrap; background:var(--bg); color:var(--muted); }
+    .badge.a,.badge.good { background:var(--soft); color:var(--green); }
+    .badge.b,.badge.info { background:var(--blue-soft); color:var(--blue); }
+    .badge.c { background:#f0eef4; color:#645570; }
+    .badge.warn { background:var(--amber-soft); color:var(--amber); }
+    .badge.bad { background:var(--red-soft); color:var(--red); }
+    .lede { margin-top:12px; color:var(--muted); max-width:900px; font-size:15px; }
+    .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-block:1px solid var(--line); margin-top:25px; }
+    .stat { padding:18px 18px 18px 0; }
+    .stat+.stat { padding-left:22px; border-left:1px solid var(--line); }
+    .stat strong { display:block; font-size:26px; font-weight:650; line-height:1.4; }
+    .stat span { color:var(--muted); font-size:12px; }
+    section { padding-top:35px; margin-top:5px; }
+    .section-meta { margin-bottom:9px; align-items:baseline; }
+    .section-intro { color:var(--muted); margin-bottom:22px; max-width:950px; }
+    .overview-grid { display:grid; grid-template-columns:minmax(0,1.08fr) minmax(0,1fr); gap:30px; margin-top:22px; }
+    .chart-head { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:8px; }
+    .chart-head span { color:var(--muted); font-size:11px; }
+    .scatter { width:100%; height:auto; display:block; background:var(--bg); border:1px solid var(--line); border-radius:6px; }
+    .scatter text { font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted); }
+    .scatter .dot-label { fill:var(--ink); font-weight:650; font-size:11px; }
+    .scatter .point { cursor:pointer; }
+    .scatter .point:hover circle,.scatter .point:focus circle { stroke:var(--ink); stroke-width:2.5; }
+    .chart-note { margin-top:8px; color:var(--muted); font-size:11px; }
+    .legend { display:flex; flex-wrap:wrap; gap:17px; font-size:11px; margin-top:9px; color:var(--muted); }
+    .legend span { display:inline-flex; align-items:center; gap:6px; }
+    .swatch { width:9px; height:9px; border-radius:50%; background:var(--green); }
+    .swatch.b { background:var(--blue); }
+    .swatch.c { background:#82718e; }
+    .recommendation { padding-top:2px; }
+    .recommendation ol { list-style:none; padding:0; margin:9px 0 0; }
+    .recommendation li { display:grid; grid-template-columns:32px minmax(0,1fr) 55px; gap:12px; border-bottom:1px solid var(--line); padding:11px 0; margin:0; }
+    .recommendation .seq { color:var(--green); font:14px/1.7 ui-monospace,monospace; }
+    .recommendation li p { color:var(--muted); font-size:12px; margin-top:3px; }
+    .recommendation .estimate { text-align:right; color:var(--muted); font-size:11px; }
+    .notice { border-left:3px solid var(--green); padding:8px 0 8px 13px; margin-top:16px; font-size:12px; color:var(--muted); }
+    .evidence-table,.feature-table,.criteria-table { border-collapse:collapse; width:100%; font-size:12px; table-layout:fixed; }
+    th { text-align:left; color:var(--muted); font-weight:500; font-size:11px; }
+    td,th { padding:10px 9px; border-bottom:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+    th:first-child,td:first-child { padding-left:0; }
+    td:last-child,th:last-child { padding-right:0; }
+    .evidence-table td:first-child { font-weight:650; }
+    .evidence-table th:nth-child(1) { width:17%; }
+    .evidence-table th:nth-child(2) { width:40%; }
+    details { border-bottom:1px solid var(--line); margin-top:18px; }
+    summary { cursor:pointer; font-weight:600; padding:10px 0; }
+    .toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:12px 0; border-block:1px solid var(--line); }
+    .segments { display:inline-flex; gap:0; max-width:100%; }
+    .segments button { border-radius:0; padding:8px 11px; font-size:12px; white-space:nowrap; }
+    .segments button+button { border-left:0; }
+    .segments button:first-child { border-radius:4px 0 0 4px; }
+    .segments button:last-child { border-radius:0 4px 4px 0; }
+    .segments button[aria-pressed=true],.segments button[aria-selected=true] { background:var(--green); color:#fff; border-color:var(--green); }
+    .search-wrap { display:flex; align-items:center; gap:8px; font-size:12px; }
+    .search-wrap input { width:190px; }
+    .catalog { display:grid; grid-template-columns:minmax(300px,.85fr) minmax(0,1.2fr); gap:28px; padding-top:18px; align-items:start; }
+    .feature-table th:nth-child(1) { width:55%; }
+    .feature-table th:nth-child(2) { width:19%; }
+    .feature-table th:nth-child(3) { width:26%; }
+    .feature-table button { border:0; padding:0; background:none; text-align:left; width:100%; line-height:1.6; }
+    .feature-table button strong { font-size:13px; display:block; }
+    .feature-table button span { font-size:10px; color:var(--muted); }
+    .feature-table td { padding-block:12px; }
+    .feature-table tr.selected { background:var(--soft); }
+    .feature-table tr.selected td:first-child { box-shadow:inset 3px 0 var(--green); padding-left:9px; }
+    .feature-table tr:hover { background:var(--bg); }
+    .feature-table tr.selected:hover { background:var(--soft); }
+    .detail { border-left:1px solid var(--line); padding-left:26px; min-width:0; }
+    .detail-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .detail h3 { font-size:20px; }
+    .detail .summary { margin-top:10px; font-size:14px; }
+    .detail-facts { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:11px; color:var(--muted); margin-top:12px; padding-bottom:13px; border-bottom:1px solid var(--line); }
+    .detail-block { margin-top:15px; font-size:12px; }
+    .detail-block .links { display:flex; flex-wrap:wrap; gap:6px 14px; }
+    .flow { display:flex; flex-wrap:wrap; gap:4px 7px; list-style:none; padding:0; color:var(--blue); font-size:12px; }
+    .flow li { margin:0; }
+    .flow li:not(:last-child)::after { content:"→"; color:#84958b; margin-left:7px; }
+    .columns { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .detail ul { margin:4px 0; }
+    .empty { padding:28px 4px; color:var(--muted); }
+    .prototype { border:1px solid #cdd6d0; border-radius:6px; margin-top:18px; overflow:hidden; background:#fff; }
+    .prototype-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; border-bottom:1px solid var(--line); padding:12px 18px; background:var(--bg); font-size:12px; }
+    .prototype-header strong { font-size:13px; }
+    .demo-pane { padding:20px; min-height:355px; }
+    [hidden] { display:none!important; }
+    .debug-layout { display:grid; grid-template-columns:235px minmax(0,1fr); gap:24px; }
+    .event-list { display:grid; gap:1px; align-content:start; border-right:1px solid var(--line); padding-right:18px; }
+    .event-button { border:0; border-radius:3px; text-align:left; padding:11px 9px; background:transparent; font-size:12px; min-height:68px; }
+    .event-button[aria-pressed=true] { background:var(--blue-soft); box-shadow:inset 3px 0 var(--blue); }
+    .event-button small { display:block; color:var(--muted); margin-top:5px; font-size:10px; }
+    .debug-detail h3 { margin-bottom:10px; }
+    .debug-detail p { font-size:12px; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace; background:var(--bg); padding:13px; border-left:3px solid #b7c4bc; margin:12px 0; }
+    .debug-detail button { margin-top:12px; font-size:12px; }
+    .draft { margin-top:12px; border-left:3px solid var(--blue); padding:10px 13px; background:var(--blue-soft); font-size:12px; }
+    .demo-topline { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:15px; margin-bottom:17px; }
+    .check-control { display:inline-flex; align-items:center; gap:8px; font-size:12px; }
+    .criteria-table th:nth-child(1) { width:30%; }
+    .criteria-table th:nth-child(2) { width:22%; }
+    .acceptance-summary { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding-top:18px; }
+    .acceptance-summary p { font-size:12px; }
+    .compare-controls { display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin-bottom:18px; }
+    .compare-controls label { display:flex; align-items:center; gap:8px; font-size:12px; }
+    .compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:26px; }
+    .compare-grid h4 { color:var(--muted); font-weight:500; }
+    .bar-row { display:grid; grid-template-columns:40px minmax(0,1fr) 68px; gap:9px; align-items:center; margin:11px 0; font-size:12px; }
+    .bar-track { background:#edf0ee; height:14px; }
+    .bar-fill { height:100%; background:var(--green); transition:width .2s; }
+    .bar-fill.alt { background:var(--blue); }
+    .delta { font-size:12px; color:var(--muted); border-top:1px solid var(--line); margin-top:15px; padding-top:12px; }
+    .timeline { margin-top:23px; display:grid; grid-template-columns:1.05fr .9fr 1.05fr; gap:0; border-block:1px solid var(--line); }
+    .release { padding:20px 22px 20px 0; }
+    .release+.release { border-left:1px solid var(--line); padding-left:22px; }
+    .release h3 { margin-top:8px; }
+    .release .days { font-size:22px; margin:6px 0; font-weight:650; }
+    .release p,.release li { font-size:12px; color:var(--muted); }
+    .release .release-line { height:5px; margin-bottom:16px; background:var(--green); width:100%; }
+    .release:nth-child(2) .release-line { background:var(--blue); }
+    .release:nth-child(3) .release-line { background:#82718e; }
+    .dependency { background:var(--bg); border-block:1px solid var(--line); padding:18px 20px; margin-top:20px; }
+    .dependency-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 13px; margin-top:11px; font-size:12px; }
+    .node { padding:6px 10px; border:1px solid #c8d4cc; border-radius:3px; background:#fff; }
+    .dependency-label { color:var(--muted); min-width:56px; font-size:11px; }
+    .architecture { margin-top:20px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--line); }
+    .architecture>div { padding:20px; }
+    .architecture>div+div { border-left:1px solid var(--line); }
+    .architecture .layer { font:11px ui-monospace,monospace; color:var(--green); margin-bottom:8px; }
+    .architecture p,.architecture li { font-size:12px; }
+    .principles { display:grid; grid-template-columns:1fr 1fr; gap:18px 30px; margin-top:24px; }
+    .principles p { font-size:12px; color:var(--muted); }
+    .quality { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:20px; }
+    .quality article { border-top:2px solid var(--line); padding-top:13px; }
+    .quality p,.quality li { font-size:12px; color:var(--muted); }
+    .source-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 28px; margin-top:20px; }
+    .source { padding:12px 0; border-bottom:1px solid var(--line); font-size:12px; }
+    .source p { color:var(--muted); font-size:11px; margin-top:3px; }
+    footer { margin-top:38px; padding-top:18px; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:15px; color:var(--muted); font-size:11px; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .print-catalog { display:none; }
+    @media(min-width:1700px) { main { padding-inline:55px; } }
+    @media(max-width:1150px) { .layout { grid-template-columns:175px minmax(0,1fr); } .sidebar { padding:25px 17px; } main { padding:26px; } .overview-grid { gap:22px; } .catalog { grid-template-columns:minmax(270px,.9fr) minmax(0,1fr); gap:18px; } .detail { padding-left:18px; } .columns { grid-template-columns:1fr; gap:0; } .debug-layout { grid-template-columns:190px minmax(0,1fr); gap:18px; } }
+    @media(max-width:920px) { .layout { display:block; } .sidebar { position:static; height:auto; padding:15px 24px; flex-direction:row; flex-wrap:wrap; align-items:center; gap:12px 24px; border-right:0; border-bottom:1px solid var(--line); } .brand { font-size:16px; } .brand small,.sidebar-foot { display:none; } .sidebar nav { display:flex; gap:18px; flex-wrap:wrap; } .sidebar nav a { font-size:12px; padding:0; } .nav-n { display:none; } main { padding:24px; } }
+    @media(max-width:700px) { h1 { font-size:25px; } h1 span { display:block; } h2 { font-size:21px; } .sidebar { padding:15px 18px; } .sidebar nav { gap:8px 17px; } main { padding:23px 18px 36px; } .head-meta { font-size:10px; } .head-meta .stamp { gap:7px; } .stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .stat { padding:13px 10px; } .stat+.stat { padding-left:15px; } .stat:nth-child(3) { border-left:0; border-top:1px solid var(--line); padding-left:10px; } .stat:nth-child(4) { border-top:1px solid var(--line); } .stat strong { font-size:23px; } .overview-grid,.catalog,.timeline,.architecture,.principles,.quality,.source-grid,.compare-grid { grid-template-columns:1fr; } .overview-grid { gap:23px; } .detail { border-left:0; padding:22px 0 0; border-top:1px solid var(--line); } .detail h3 { font-size:19px; } .columns { grid-template-columns:1fr 1fr; gap:15px; } .toolbar { gap:12px; } .search-wrap { width:100%; } .search-wrap input { flex:1; width:0; } .segments button { padding:8px 10px; } .demo-pane { padding:15px; min-height:430px; } .debug-layout { grid-template-columns:1fr; gap:17px; } .event-list { grid-template-columns:repeat(3,minmax(0,1fr)); border-right:0; border-bottom:1px solid var(--line); padding:0 0 12px; gap:4px; } .event-button { padding:8px 6px; font-size:11px; min-height:79px; } .event-button small { font-size:9px; } .prototype-header { padding:12px 15px; } .release,.release+.release { padding:20px 0; border-left:0; } .release+.release { border-top:1px solid var(--line); } .architecture>div+div { border-left:0; border-top:1px solid var(--line); } .quality { gap:16px; } .criteria-table { font-size:11px; } .criteria-table th:nth-child(1) { width:31%; } .criteria-table th:nth-child(2) { width:27%; } .evidence-table { font-size:11px; } .evidence-table th:nth-child(1) { width:20%; } section { padding-top:29px; } footer { display:block; } footer span { display:block; margin-bottom:7px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .bar-fill { transition:none; } }
+    @media print { @page { size:A4; margin:15mm; } body { font-size:11px; } .layout { display:block; } .sidebar,.head-meta button,.toolbar,.feature-table,.prototype,.demo-tabs,.chart-note.action,.detail,.catalog-note { display:none; } main { padding:0; max-width:none; } section { padding-top:20px; } a { color:inherit; } .overview-grid { grid-template-columns:1fr 1fr; } .catalog { display:block; } .print-catalog { display:block; } .print-feature { break-inside:avoid; padding:15px 0; border-bottom:1px solid var(--line); } .print-feature p,.print-feature li { font-size:11px; } .stats { margin-top:15px; } .architecture,.timeline,.quality,.principles { break-inside:avoid; } .prototype-print-note { display:block!important; } details { display:block; } footer { font-size:10px; } }
+  </style>
+</head>
+<body>
+<a class="sr-only" href="#overview">跳到功能方案</a>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">DeepSeek<br>Harness<small>PRODUCT DESIGN / 2026.10</small></div>
+    <nav aria-label="方案章节">
+      <a href="#overview"><span class="nav-n">01</span>功能组合</a>
+      <a href="#features"><span class="nav-n">02</span>功能规格</a>
+      <a href="#prototype"><span class="nav-n">03</span>交互样机</a>
+      <a href="#roadmap"><span class="nav-n">04</span>开发节奏</a>
+      <a href="#architecture"><span class="nav-n">05</span>架构与数据</a>
+      <a href="#validation"><span class="nav-n">06</span>验收与依据</a>
+    </nav>
+    <div class="sidebar-foot"><a href="harness-engineering-audit.html">查看工程优化报告 →</a>面向个人与小团队开发者<br>设计提案 · 尚未实现<br><span class="mono">2026-10-08</span></div>
+  </aside>
+  <main>
+    <header id="overview">
+      <div class="head-meta"><div class="stamp"><span class="badge info">功能设计提案 v1</span><span>基于当前工作区代码 · 2026-10-08</span></div><button id="print-design" type="button">打印方案</button></div>
+      <h1><span>DeepSeek Harness</span> <span>新增功能设计</span></h1>
+      <p class="lede">围绕开发者每天的四件事：明确交付标准、找到失败现场、比较执行方案、控制运行成本。把已有的会话记录与工具能力组织成可追溯的开发工作台。</p>
+      <div class="stats" aria-label="提案概览">
+        <div class="stat"><strong>10</strong><span>候选功能，均为设计提案</span></div>
+        <div class="stat"><strong>4</strong><span>首批推荐，覆盖日常任务与调试</span></div>
+        <div class="stat"><strong>19–29 <small style="font-size:13px">人日</small></strong><span>首批工作量估算，含验证</span></div>
+        <div class="stat"><strong>3</strong><span>增量发布批次，以验收决定推进</span></div>
+      </div>
+      <div class="overview-grid">
+        <div>
+          <div class="chart-head"><h3>价值与工作量</h3><span>圆点编号对应功能规格</span></div>
+          <svg class="scatter" id="priority-chart" viewBox="0 0 540 288" aria-labelledby="chart-title chart-desc" role="group"><title id="chart-title">10 项功能的价值与工作量分布</title><desc id="chart-desc">横轴为预估开发人日，纵轴为日常使用价值，分值为设计判断而非实测。F04 事件定位和 F09 环境预检的成本较低。</desc></svg>
+          <div class="legend"><span><i class="swatch"></i>A · 定位与交付</span><span><i class="swatch b"></i>B · 留存与控制</span><span><i class="swatch c"></i>C · 比较与复用</span></div>
+          <p class="chart-note">价值为 1–5 分的主观设计评级；工作量取区间中点。坐标仅帮助比较，不代表收益承诺。</p>
+        </div>
+        <div class="recommendation">
+          <h3>建议先把这四项做扎实</h3>
+          <ol>
+            <li><span class="seq">04</span><div><strong>事件定位与书签</strong><p>搜索结果直接打开具体工具调用，支持跨页和重启定位。</p></div><span class="estimate">4–6<br>人日</span></li>
+            <li><span class="seq">03</span><div><strong>失败诊断工作台</strong><p>把错误、输入、输出及关联证据放到同一处，生成可审阅的修复草稿。</p></div><span class="estimate">5–8<br>人日</span></li>
+            <li><span class="seq">01</span><div><strong>任务交付与验收</strong><p>逐项关联测试与交付物；代码变化后，把旧验证标为待复验。</p></div><span class="estimate">7–10<br>人日</span></li>
+            <li><span class="seq">09</span><div><strong>环境预检</strong><p>在开始长任务前发现插件、工具和执行环境的确定性阻塞。</p></div><span class="estimate">3–5<br>人日</span></li>
+          </ol>
+          <p class="notice">发布 A 共 19–29 人日。先完成 F04，F09 可独立推进；F03 与 F01 共用事件引用。团队并行可以缩短日历时间，但不减少总工作量。</p>
+        </div>
+      </div>
+      <details id="existing-capabilities">
+        <summary>设计依据：哪些能力已经存在，新增部分是什么</summary>
+        <table class="evidence-table"><thead><tr><th>能力领域</th><th>当前代码已有</th><th>本次建议新增</th></tr></thead><tbody>
+          <tr><td>计划与目标</td><td>Plan 审阅；同会话 Goal 持久状态、轮数上限。</td><td>结构化验收项与验证证据；Token / 时间预算。见 F01、F06。</td></tr>
+          <tr><td>运行观察</td><td>Trajectory 输入输出、错误详情、时间线、prompt diff。</td><td>跨事件诊断、事件链接及会话间对比。见 F03、F04、F05。</td></tr>
+          <tr><td>文件交付</td><td>changed-files 卡片、文件对比、显式 present 交付。</td><td>可选持久保存的对比内容与保留策略。见 F02。</td></tr>
+          <tr><td>历史检索</td><td>Session Query 事件查询、SQLite 全文检索、会话搜索入口。</td><td>命中事件定位与书签；继续使用现有检索后端。见 F04。</td></tr>
+          <tr><td>上下文</td><td>上下文占用、请求记录、系统 prompt 差异。</td><td>来源贡献视图及下一请求的上下文变更预览。见 F07。</td></tr>
+          <tr><td>自动化</td><td>工作流、预设、Skill、Jobs、Schedule；实验性 Agent Teams。</td><td>面向常见开发任务的参数化配方。见 F08。</td></tr>
+          <tr><td>运行控制</td><td>权限审批、沙箱、协作式工具超时、模型选择。</td><td>跨请求资源预算和开始前的环境预检。见 F06、F09。</td></tr>
+          <tr><td>分享与诊断</td><td>含子会话及附件的原始 Session ZIP 导出。</td><td>带字段预览的最小诊断包，输出独立副本。见 F10。</td></tr>
+        </tbody></table>
+        <p class="chart-note">现状结论来自下方列出的代码与 README；未对所有 profile 和平台进行运行验证。功能可用性依赖实际组合。</p>
+      </details>
+    </header>
+
+    <section id="features">
+      <div class="section-meta"><h2>02 / 功能规格</h2><span class="muted small">所有条目均未作为本轮新功能实现</span></div>
+      <p class="section-intro">每项提案包含最小范围、用户流程、数据所有权、失败处理和可执行的验收条件。优先复用现有 package；建议新增的职责尚未对应已存在的 API。</p>
+      <div class="toolbar">
+        <div class="segments" role="group" aria-label="按发布批次筛选"><button type="button" data-phase="all" aria-pressed="true">全部 10</button><button type="button" data-phase="A" aria-pressed="false">首批 A</button><button type="button" data-phase="B" aria-pressed="false">后续 B</button><button type="button" data-phase="C" aria-pressed="false">扩展 C</button></div>
+        <label class="search-wrap">检索功能<input type="search" id="feature-search" placeholder="名称、编号或关键词" autocomplete="off"></label>
+      </div>
+      <div class="catalog">
+        <div><table class="feature-table"><thead><tr><th>功能</th><th>批次</th><th>预估人日</th></tr></thead><tbody id="feature-rows"></tbody></table><p class="small muted" id="feature-count" aria-live="polite" style="margin-top:12px"></p></div>
+        <article class="detail" id="feature-detail" aria-label="所选功能规格"></article>
+      </div>
+      <div class="print-catalog" id="print-catalog"></div>
+      <noscript><p>此文件的功能规格和样机需要浏览器启用 JavaScript；发布节奏、架构原则与来源可直接阅读。</p></noscript>
+    </section>
+
+    <section id="prototype">
+      <div class="section-meta"><h2>03 / 交互样机</h2><span class="badge warn">演示数据 · 不连接 Harness，不执行命令</span></div>
+      <p class="section-intro">沿用会话、Trajectory 与右侧详情的工作方式。下面展示失败定位、验收证据失效和会话比较三个关键交互。</p>
+      <div class="segments demo-tabs" role="tablist" aria-label="交互样机"><button type="button" id="tab-debug" role="tab" data-demo="debug" aria-selected="true" aria-controls="demo-debug">失败诊断</button><button type="button" id="tab-acceptance" role="tab" data-demo="acceptance" aria-selected="false" aria-controls="demo-acceptance" tabindex="-1">交付验收</button><button type="button" id="tab-compare" role="tab" data-demo="compare" aria-selected="false" aria-controls="demo-compare" tabindex="-1">会话对比</button></div>
+      <div class="prototype">
+        <div class="prototype-header"><strong>修复分页查询 · 示例工作区</strong><span class="small muted">样例会话 DEV-024 / 分支 feature/pagination</span></div>
+        <div id="demo-debug" class="demo-pane" role="tabpanel" aria-labelledby="tab-debug">
+          <div class="debug-layout"><div class="event-list" aria-label="示例事件">
+            <button class="event-button" data-event="failure" aria-pressed="true" type="button"><span class="badge bad">失败</span> 断言不匹配<small>#120 · bash · 14:32:06</small></button>
+            <button class="event-button" data-event="edit" aria-pressed="false" type="button"><span class="badge info">编辑</span> 游标偏移修正<small>#125 · edit · 14:34:19</small></button>
+            <button class="event-button" data-event="pass" aria-pressed="false" type="button"><span class="badge good">通过</span> 定向测试完成<small>#129 · bash · 14:35:02</small></button>
+          </div><div class="debug-detail" id="debug-detail" aria-live="polite"></div></div>
+        </div>
+        <div id="demo-acceptance" class="demo-pane" role="tabpanel" aria-labelledby="tab-acceptance" hidden>
+          <div class="demo-topline"><h3>交付标准 <span class="badge good" id="acceptance-badge">3 / 3 已验证</span></h3><label class="check-control"><input type="checkbox" id="simulate-edit">模拟代码再次修改</label></div>
+          <table class="criteria-table"><thead><tr><th>验收项</th><th>状态</th><th>关联证据</th></tr></thead><tbody>
+            <tr><td>分页边界不重复</td><td><span class="badge good revision-status">已验证</span></td><td>#129 · 测试退出码 0<br><span class="muted small">作用范围摘要 rev-a1</span></td></tr>
+            <tr><td>类型检查通过</td><td><span class="badge good revision-status">已验证</span></td><td>#130 · typecheck<br><span class="muted small">作用范围摘要 rev-a1</span></td></tr>
+            <tr><td>附上复现步骤</td><td><span class="badge good">已确认</span></td><td>#131 · reproduction.md<br><span class="muted small">人工确认；内容摘要未变化</span></td></tr>
+          </tbody></table>
+          <div class="acceptance-summary"><span class="badge good" id="delivery-badge">可提交审阅</span><p id="acceptance-explanation">验证证据与当前修订一致。完成验收不会自动提交代码或合并 PR。</p></div>
+          <p class="notice">绑定执行目录、argv、结果事件和验证范围的内容摘要。新修改命中该范围后，原测试结果仍保留，当前验收状态变为“待复验”。</p>
+        </div>
+        <div id="demo-compare" class="demo-pane" role="tabpanel" aria-labelledby="tab-compare" hidden>
+          <div class="compare-controls"><label>基线<select aria-label="基线会话"><option>会话 A · 默认方案</option></select></label><label>对比<select id="compare-candidate" aria-label="对比会话"><option value="focused">会话 B · 精简上下文</option><option value="thorough">会话 C · 扩展验证</option></select></label><span class="badge info">仅比较已记录的结果</span></div>
+          <div class="compare-grid"><div><h4>累计记录 Token</h4><div class="bar-row"><span>A</span><div class="bar-track"><div class="bar-fill" style="width:69%"></div></div><span>24,800</span></div><div class="bar-row"><span id="compare-name-token">B</span><div class="bar-track"><div class="bar-fill alt" id="compare-token-bar"></div></div><span id="compare-token"></span></div></div><div><h4>记录墙钟耗时</h4><div class="bar-row"><span>A</span><div class="bar-track"><div class="bar-fill" style="width:64%"></div></div><span>96 s</span></div><div class="bar-row"><span id="compare-name-time">B</span><div class="bar-track"><div class="bar-fill alt" id="compare-time-bar"></div></div><span id="compare-time"></span></div></div></div>
+          <p class="delta" id="compare-delta" aria-live="polite"></p>
+          <p class="notice">这是交互用的合成数据，不是性能测试。不同模型、prompt、基线文件或工具条件会影响结果；真实功能必须列出这些差异，缺失用量显示“未知”。</p>
+        </div>
+      </div>
+      <p class="prototype-print-note" hidden>交互样机见此 HTML 文件：失败诊断可选择事件并生成草稿；交付验收可模拟证据过期；会话对比可切换合成样例。所有样机均不连接实际运行环境。</p>
+    </section>
+
+    <section id="roadmap">
+      <div class="section-meta"><h2>04 / 开发节奏</h2><span class="muted small">A / B / C 是新增功能发布批次，与之前工程阶段分开</span></div>
+      <p class="section-intro">按可独立验收的增量交付。10 项合计约 56–85 人日；以一名熟悉仓库的全栈工程师计算，包含实现、测试、双语文档和审阅修正，不包含外部平台认证与等待时间。</p>
+      <div class="timeline" aria-label="三个发布批次">
+        <article class="release"><div class="release-line"></div><span class="badge a">A · 首批推荐</span><h3>定位现场，交付有据</h3><div class="days">19–29 人日</div><p>F04 事件定位 → F03 失败诊断 / F01 任务验收；F09 环境预检独立推进。</p><ul><li>搜索结果可直达旧事件。</li><li>诊断结论可回到输入与输出。</li><li>验收能区分已验证、未知和待复验。</li></ul></article>
+        <article class="release"><div class="release-line"></div><span class="badge b">B · 运行可信</span><h3>保留证据，控制投入</h3><div class="days">14–21 人日</div><p>F02 持久变更审阅 + F06 资源预算。先确定内容保留规则与预算统计范围。</p><ul><li>重启仍能打开已保存的文件对比。</li><li>预算耗尽后不再准入新请求。</li><li>中断、并发与恢复具有可解释状态。</li></ul></article>
+        <article class="release"><div class="release-line"></div><span class="badge c">C · 复用与实验</span><h3>比较策略，积累方法</h3><div class="days">23–35 人日</div><p>F05 会话对比 + F07 上下文来源 + F08 开发配方 + F10 诊断包。</p><ul><li>比较已有运行，无隐式重复执行。</li><li>配方有版本和明确参数。</li><li>分享前可检查实际导出内容。</li></ul></article>
+      </div>
+      <div class="dependency" aria-label="功能依赖关系"><h3>关键依赖</h3><div class="dependency-row"><span class="dependency-label">硬依赖</span><span class="node">F04 事件引用</span><span>→</span><span class="node">F03 失败诊断</span><span class="node">F01 验收证据</span><span class="node">F05 会话对比</span></div><div class="dependency-row"><span class="dependency-label">后续增强</span><span class="node">F02 持久文件对比</span><span>⇢</span><span class="node">F01 / F05 的文件证据</span></div><div class="dependency-row"><span class="dependency-label">独立推进</span><span class="node">F09 环境预检</span><span class="node">F06 资源预算</span><span class="node">F07 上下文来源</span></div><p class="chart-note">实线表示首版所需能力；虚线表示可后补的增强。F08 首版复用现有 preset / workflow / skill，不依赖新的调度系统。</p></div>
+      <p class="notice">估算置信度：中等。先用 F04 的一个历史分页场景校准成本，再排其余项。最可能放大工作量的是 F02 的持久存储与远程文件系统，以及 F06 的子任务预算分配。</p>
+    </section>
+
+    <section id="architecture">
+      <div class="section-meta"><h2>05 / 架构与数据</h2><span class="muted small">插件扩展 · 单一事实来源 · 无需另起一套 Agent Loop</span></div>
+      <p class="section-intro">展示功能先使用已有 Session 记录构建投影；只有确实需要跨重启保留的用户决定才新增数据。新的服务必须同时设计服务定义、具体实现和实际消费者。</p>
+      <div class="architecture">
+        <div><div class="layer">01 / CLIENT</div><h3>工作台与详情</h3><p>通过现有 Conversation、Sidebar 和 Settings 扩展点接入。失败诊断放在 Trajectory 旁，验收跟随任务，环境检查跟随工作区。</p><ul><li>共享状态由注册的 store 管理。</li><li>派生视图不持有另一份日志。</li><li>中英文文案使用类型化字典。</li></ul></div>
+        <div><div class="layer">02 / HOST</div><h3>查询、策略与执行</h3><p>复用 sessionQuery、sessionProjections、commands、goals、tools 和 subprocess。资源准入策略在实际发起请求的扩展点执行。</p><ul><li>路由验证 Session 访问范围。</li><li>用户操作采用修订号拒绝旧写入。</li><li>效果注册可卸载，取消等待清理。</li></ul></div>
+        <div><div class="layer">03 / DURABILITY</div><h3>事实、引用与内容</h3><p>会话事实追加日志；书签与配方使用工作区存储；大体积文件内容由独立存储实现保存，日志只引用内容摘要与清单。</p><ul><li>引用使用品牌化 ID 与逻辑事件 seq。</li><li>既有持久化代际保持不可变。</li><li>丢失内容展示不可用，不伪造快照。</li></ul></div>
+      </div>
+      <div class="principles">
+        <article><h4>记录事实与诊断推断分开</h4><p>退出码、工具结果和文件摘要属于已记录事实；错误原因属于推断。诊断建议始终附事件引用。仅有时间相邻的事件不能被标成确定因果。</p></article>
+        <article><h4>模型可见输入必须可重建</h4><p>把验收标准、配方或上下文选择交给模型时，使用已有可记录输入路径或新增有所有者的 Session 事件。UI 的本地状态不能暗中改变请求。</p></article>
+        <article><h4>恢复会话不等于恢复文件或重做操作</h4><p>F05 首版只比较；Session fork 不承诺隔离或回滚文件系统。F02 首版只保存与审阅，不执行自动恢复。未来工作树隔离需单独设计。</p></article>
+        <article><h4>未测得与零值分开</h4><p>缺失 Token、未知价格、未运行检查和已过期结果均有独立状态。费用为带价格版本的估算，账单与供应商配额仍由供应商确认。</p></article>
+      </div>
+      <details><summary>建议数据职责与持久化审阅点</summary><table class="evidence-table"><thead><tr><th>职责</th><th>建议记录</th><th>一致性与兼容性</th></tr></thead><tbody>
+        <tr><td>事件引用</td><td>SessionId + 逻辑 seq + 可选工具调用身份；资源导航参数。</td><td>分叉不能沿用父会话地址；旧页按目标 seq 加载，访问拒绝不泄露内容。</td></tr>
+        <tr><td>验收证据</td><td>验收项版本、执行结果引用、argv / cwd、验证范围与内容摘要。</td><td>事实追加；旧执行永远保留；当前状态通过修订与范围重算。</td></tr>
+        <tr><td>变更留存</td><td>不可变的文件内容对象和 manifest；记录缺失、过大与二进制状态。</td><td>对象先写入并校验，再发布 manifest 引用；配额与清理要显式可配。</td></tr>
+        <tr><td>预算策略</td><td>规则版本、准入 / 停止决定、结算引用、作用范围。</td><td>同一用量只计一次；状态恢复与授权恢复分开；进程丢失的用量标未知。</td></tr>
+        <tr><td>用户偏好</td><td>书签、配方定义、UI 视图选项存于所属工作区或设置。</td><td>非模型事实无需复制进 Session；一旦作为模型输入使用，记录实际解析结果。</td></tr>
+      </tbody></table><p class="chart-note">以上是概念设计，不是已经发布的类型或事件名。实现时必须完成 persistence-type acknowledgement；只有结构性格式变化才按现有规则决定版本迁移，SQLite schema 保持单调递增。</p></details>
+    </section>
+
+    <section id="validation">
+      <div class="section-meta"><h2>06 / 验收与依据</h2><span class="muted small">先建立基线，再评估收益</span></div>
+      <div class="quality">
+        <article><h3>功能必须通过的场景</h3><ul><li>历史分页未加载、连接替换、重启及事件不可见时，定位结果明确。</li><li>验收结果在文件修改后过期；人工确认与程序验证不混为一谈。</li><li>同一结果重复到达不重复计费；达到预算后停止新请求，正确呈现在途结算。</li><li>插件卸载释放注册、订阅与资源；功能可从组合中移除。</li></ul></article>
+        <article><h3>验证证据</h3><ul><li>纯模型单测覆盖状态转换和拒绝路径。</li><li>通过真实 dsh profile 的 keyless Session replay 验证模型输入与持久化。</li><li>浏览器验证跨页定位、键盘操作、窄屏布局和重连。</li><li>Session 事件或生命周期改变时，同步两种 SDK 的预期输出。</li></ul></article>
+        <article><h3>落地后的衡量方式</h3><p>先记录当前版本的固定任务基线；上线后用相同任务比较。报告中不预设“提升百分比”。</p><ul><li>从失败提示到打开错误输入的操作次数与用时。</li><li>交付时仍缺证据、或证据过期的验收项比例。</li><li>预算达到后额外准入的请求数与在途结算量。</li><li>已保存对比内容在重启后的读取成功率。</li></ul></article>
+        <article><h3>本次暂不扩张的范围</h3><p>多租户组织管理、云端插件市场、自动 PR 合并、任意副作用重放、工作区一键回滚不列入本轮。当前最有价值的投入，是让已有执行能力更容易理解、验证和复用。</p><p style="margin-top:10px">已有实验性 Agent Teams、自动审批等功能继续按其现有定位使用；不把它们重新包装成新能力。</p></article>
+      </div>
+      <div class="source-grid">
+        <div class="source"><a href="packages/client/ui-trajectory/README.md">Trajectory：时间线、检查器与已知限制</a><p>依据：已具备错误与输入输出；事件选择是局部状态，未提供锚点深链接。</p></div>
+        <div class="source"><a href="packages/client/ui-workspace/README.md">Workspace：会话搜索与导航</a><p>依据：命中后打开 Session，不定位匹配事件；检索能力本身已存在。</p></div>
+        <div class="source"><a href="packages/session-query/session-query/src/types.ts">Session Query：事件读取与查询类型</a><p>复用 readEvent、traceEvent、事件身份及有界上下文。</p></div>
+        <div class="source"><a href="packages/deliverables/workspace-changes/src/recorder.ts">Workspace Changes：变更记录实现</a><p>结合 <a href="packages/deliverables/workspace-changes/README.md">README</a> 核对 Host 生命周期、临时内容及外部修改归属限制。</p></div>
+        <div class="source"><a href="packages/client/ui-plan/README.md">Plan：已有计划审阅</a> · <a href="packages/goal/goal/README.md">Goal：已有目标状态</a><p>新增验收项与证据关系，不替换两者的既有职责。</p></div>
+        <div class="source"><a href="packages/goal/goal-round-driver/README.md">Goal Driver：轮数控制</a> · <a href="packages/workflow/workflow/README.md">Workflow：执行上限</a><p>文档明确区分轮数上限与 Token / 时间预算，跨子任务 Token 预算需新增设计。</p></div>
+        <div class="source"><a href="packages/client/ui-conversation/README.md">Conversation：上下文占用</a> · <a href="packages/core/system-prompt/README.md">System Prompt</a><p>来源展示应基于已提交请求，未知部分保留未知。</p></div>
+        <div class="source"><a href="packages/session-query/session-log-export/README.md">现有原始日志导出</a><p>诊断包是单独的最小导出模式，不能把完整 ZIP 错当成已脱敏文件。</p></div>
+        <div class="source"><a href="packages/client/ui-agent-preset/README.md">Preset</a> · <a href="packages/experimental/agent-team/README.md">实验性 Agent Teams</a><p>配方复用现有组合能力；团队任务与协作不能被描述为完全缺失。</p></div>
+        <div class="source"><a href="docs/architecture.md">架构扩展点</a> · <a href="docs/testing.md">测试政策</a> · <a href="docs/session-format-status.md">持久化状态</a><p>新增功能按现有 profile、插件、Session 与类型迁移规则接入。</p></div>
+      </div>
+    </section>
+    <footer><span>DeepSeek Harness · 新增功能设计 / v1 · 2026-10-08</span><span>设计提案与本地交互样机；估算待实施校准，非已交付功能。</span></footer>
+  </main>
+</div>
+<script>
+  'use strict';
+  const features = [
+    {id:'F04', name:'事件定位与书签', phase:'A', kind:'扩展现有检索与导航', days:[4,6], value:4.7, confidence:'较高', keywords:'搜索 历史 深链接 bookmark', summary:'从搜索结果或错误引用直接到达具体事件；重新打开链接时能恢复到同一个现场。', current:'Session Query 已可按事件读取和追踪；Workspace 搜索打开会话，Trajectory 选择仍为局部状态。', delta:'统一事件地址、按 seq 加载历史页、定位高亮与工作区书签。', flow:['搜索命中','打开事件地址','补齐目标历史页','高亮记录','固定书签'], mvp:['支持工具调用、结果与 Assistant 已提交记录。','链接定位 Trajectory 及对应详情，保留返回位置。','书签可命名、删除，并保留原始 Session 引用。'], nonGoals:['模糊 / 向量搜索。','跨机器公开分享或给流式未提交片段永久地址。'], owners:[['session-query','packages/session-query/session-query/README.md'],['session-controller','packages/api/session-controller/README.md'],['ui-workspace','packages/client/ui-workspace/README.md'],['ui-trajectory','packages/client/ui-trajectory/README.md']], data:'事件地址使用 SessionId + 逻辑 seq，必要时附调用身份；书签存于工作区非会话存储。读取不修改 Session。', failure:'访问拒绝、Session 缺失、目标记录无法投影分别提示；旧页未加载先显示定位进度，不静默跳到最近一条。分叉地址必须包含目标 Session。', acceptance:['冷启动打开旧事件链接，按需加载目标页并选中正确记录。','分页追加、压缩记录和子工具结果不会让引用指向别的事件。','访问不允许的 Session 返回拒绝；键盘可以完成复制地址及书签操作。'], metric:'从搜索命中到看见目标输入输出的操作数；深链接定位成功率。', deps:'无新功能依赖；先做现有历史分页的定向加载。'},
+    {id:'F03', name:'失败诊断工作台', phase:'A', kind:'扩展已有 Trajectory', days:[5,8], value:4.9, confidence:'中等', keywords:'debug 错误 修复 排障', summary:'把一次失败所需的上下文聚合起来，给开发者能检查、能追溯的修复建议。', current:'Trajectory 已展示错误码、输入输出、请求时间和原始工具结果。', delta:'跨记录的失败聚合、关联证据、错误分类与修复草稿。', flow:['打开失败列表','选择错误','查看输入与关联结果','生成修复草稿','用户提交新任务'], mvp:['聚合工具错误、请求失败与中断；优先使用结构化错误码。','显示原始事件、最近相关修改和环境信息；区分关联与确定因果。','先用规则生成下一步检查草稿；用户提交后才进入模型执行。'], nonGoals:['全自动根因判定。','一键重放写文件、支付、部署等副作用操作。'], owners:[['ui-trajectory','packages/client/ui-trajectory/README.md'],['session-query','packages/session-query/session-query/README.md'],['tools','packages/core/tools/README.md']], data:'失败清单是日志投影；草稿留在本地编辑器。提交草稿走已有用户输入路径，模型推断必须附事件证据。', failure:'输出截断时保留截断标识；缺失调用上下文时不补造参数。源事件权限变化后隐藏内容；重复错误分组仍可展开每次发生。', acceptance:['同一结构化错误可分组，原始调用次数和输出均可追溯。','被用户取消与执行失败不被混成一种错误。','生成草稿不会启动模型或再次执行工具；提交后的输入可从 Session 重建。'], metric:'失败到定位所需事件的时间；草稿采纳率与人工纠正率。', deps:'F04 事件定位。'},
+    {id:'F01', name:'任务交付与验收', phase:'A', kind:'新增验收职责，复用 Plan / Goal', days:[7,10], value:5, confidence:'中等', keywords:'任务 标准 测试 evidence 验收', summary:'让“做完了”对应明确的验收项、实际执行记录和交付物版本。', current:'已有计划审阅、Goal 生命周期、Todo 与文件交付；这些各有职责。', delta:'为一个任务增加版本化验收清单与证据绑定，不让模型的一句完成代替检查。', flow:['确认验收清单','执行任务','绑定测试与交付证据','检查过期项','提交审阅'], mvp:['每项支持程序验证或人工确认，状态包括待办、已验证、失败、待复验。','收录执行目录、argv、结果事件、检查范围及内容摘要。','修改命中验证范围后自动标记待复验；证据不充分时显示未知。'], nonGoals:['任意测试输出的自动语义理解。','新的通用项目管理系统或自动合并 PR。'], owners:[['plan-mode','packages/plan/plan-mode/README.md'],['goal','packages/goal/goal/README.md'],['ui-deliverables','packages/client/ui-deliverables/README.md'],['session-projection','packages/session/session-projection/README.md']], data:'建议新增验收服务，使用品牌化条目 ID 与修订号；Session 追加验收变更和证据引用。验收清单作为模型输入时记录实际版本。', failure:'旧修订更新被拒绝；测试未运行不显示通过。无法获得可靠文件摘要时标记未验证；Host 重启后已有事件仍可读，临时文件对比可能不可用。', acceptance:['重启恢复验收清单和证据，重复结果不重复添加。','校验范围内文件再次改变后，已通过结果变成待复验。','人工确认明确标注；失败或未知检查不会自动关闭 Goal 或提交代码。'], metric:'交付时有有效证据的验收项比例；旧证据被误用的次数。', deps:'F04 事件引用；F02 后续增强历史文件内容留存，不阻塞首版。'},
+    {id:'F09', name:'工作区环境预检', phase:'A', kind:'新增聚合诊断入口', days:[3,5], value:4.3, confidence:'较高', keywords:'environment 插件 配置 前置 检查', summary:'长任务开始前先看清楚当前组合和工具是否足以完成任务。', current:'插件加载、配置校验和运行时诊断已有各自入口；实际能力由 profile 组合决定。', delta:'对所选任务给出一份只读、可定位的环境检查报告。', flow:['选择工作区与任务类型','查看检查计划','运行只读预检','定位失败配置','重新检查'], mvp:['核对 profile 需要的插件、工具可用性、工作目录和版本约束。','报告区分通过、失败、不可探测；每项显示采样时间。','探测命令显式展示，经 subprocess 执行并使用有界超时。'], nonGoals:['自动安装依赖或修改环境。','通过一次预检承诺后续网络和供应商永久可用。'], owners:[['app-boot','packages/boot/app-boot/README.md'],['plugin-manager','packages/boot/plugin-manager/README.md'],['subprocess','packages/subprocess/subprocess/README.md'],['runtime diagnostics','packages/runtime-diagnostics/README.md']], data:'检查结果是带时间的观察快照；用户显式附给任务时才进入已记录上下文。定义由已有配置和任务声明派生，不读取或输出凭据值。', failure:'缺少安全的探测方式就报告未探测；网络与权限错误分开。切换 Host 或工作区后旧报告显示已过期。', acceptance:['缺失插件、错误目录和版本不符分别定位到具体检查项。','取消会终止并等待探测进程；报告不暴露凭据。','不可探测项目不会显示通过，也不阻止无关任务。'], metric:'任务启动后才发现的环境阻塞次数；预检准确率。', deps:'无新功能依赖。'},
+    {id:'F02', name:'持久变更审阅', phase:'B', kind:'扩展已有变更对比', days:[8,12], value:4.5, confidence:'中等', keywords:'diff snapshot 重启 文件 保留', summary:'为需要留档的任务保存文件对比，Host 重启后仍可查看当时修改的内容。', current:'workspace-changes 使用临时快照；Host 重启或 Session 释放后不再提供早期对比。', delta:'可选的持久内容存储、清单、容量策略与过期呈现。', flow:['启用任务留存','采集前后内容','写入不可变清单','重启后读取','按策略释放内容'], mvp:['显式选择工作区留存；保存受支持范围的内容与摘要。','对象先持久化并校验，再发布日志引用，防止伪成功。','配置总配额、单文件上限与保留期限；缺失、二进制、过大分别呈现。'], nonGoals:['一键文件系统回滚或隔离工作树。','承诺区分同轮中用户与 Agent 的全部并发写入。'], owners:[['workspace-changes','packages/deliverables/workspace-changes/README.md'],['ui-deliverables','packages/client/ui-deliverables/README.md'],['storage','packages/storage/README.md']], data:'建议内容寻址存储提供者保存不可变对象，Session 追加 manifest 引用。旧临时事件保持原有语义，不回填未曾捕获的内容。', failure:'配额耗尽记录留存失败而非让任务失败；内容清理后清单保留可解释的过期状态。外部路径、忽略文件和远程文件系统需要明确采集规则。', acceptance:['Host 重启后已保存的文本对比与采集时一致。','写入中断不会发布指向半写对象的成功清单。','配额、过期、对象缺失和跨 Session 权限拒绝均有明确状态。'], metric:'重启后的对比读取成功率；每任务留存体积；清理的可解释性。', deps:'独立存储实现与生命周期设计；不依赖 Session 格式倒退或覆盖。'},
+    {id:'F06', name:'会话资源预算', phase:'B', kind:'新增资源准入策略', days:[6,9], value:4.6, confidence:'中等', keywords:'token budget 费用 时间 配额', summary:'让长任务具有清晰的 Token 与时间额度，并解释何时停止、哪些用量尚未结算。', current:'Goal 有轮数上限，工具有协作式超时；它们不等于跨请求 Token、费用或供应商额度控制。', delta:'独立预算配置、用量投影、下一请求准入判断与停止原因。', flow:['设定范围和额度','显示已结算与在途','准入前检查','额度不足停止新请求','用户调整后恢复'], mvp:['首版仅当前 Session 的请求额度与活动时长；子任务明确显示未纳入。','在实际发起请求的扩展点校验预算，包括重试路径。','Token 缺失显示未知；费用仅作带价格版本的估算。'], nonGoals:['精确预测最终账单或查询所有供应商配额。','首版跨进程、全工作区强一致共享预算。'], owners:[['goal-round-driver','packages/goal/goal-round-driver/README.md'],['core agent','packages/core/agent/README.md'],['llm','packages/llm/llm/README.md'],['session-projection','packages/session/session-projection/README.md']], data:'预算规则与停止决定持久化；用量依据提交结果去重累加。进程恢复后重新核对规则和当前授权，不因 active 状态自动恢复执行。', failure:'在途请求仍可产生用量，UI 单独显示。不能可靠预留输出的路由只承诺阻止下一请求；未知用量时拒绝新增自动轮次并提供人工调整入口。', acceptance:['同一结算事件重放后不会重复计算。','达到上限后新请求与重试均被正确拦截，在途结果如实结算。','恢复不重复启动已停止任务；时间测试可控，不依赖墙钟偶然调度。'], metric:'额度耗尽后额外准入数；未知用量占比；在途超出量。', deps:'首版明确当前 Session 范围；跨子任务分配作为单独的后续设计。'},
+    {id:'F05', name:'会话对比实验台', phase:'C', kind:'新增只读跨会话比较', days:[7,10], value:4.1, confidence:'中等', keywords:'compare 模型 A/B 分叉 评测', summary:'比较两次解决同一任务的记录，理解差异来自上下文、模型、工具还是执行结果。', current:'已有 Session fork、模型选择、prompt 检查和使用量记录；fork 本身不隔离文件系统。', delta:'选择基线与候选会话，按轮次、工具、用量和交付结果对齐展示。', flow:['选择基线','选择候选','核对可比条件','查看差异','跳回源事件'], mvp:['首版只比较已有日志，不自动启动实验。','展示模型、prompt、工具及文件基线的已知差异。','缺失数据标未知，展示累计用量、耗时、错误和结果引用。'], nonGoals:['确定性重放任意真实工具。','根据速度或 Token 自动宣布质量胜出。'], owners:[['session-query','packages/session-query/session-query/README.md'],['ui-trajectory','packages/client/ui-trajectory/README.md'],['ui-model-selection','packages/client/ui-model-selection/README.md']], data:'比较为两个固定观察前缀的纯投影。保存比较配置仅存 Session 引用与前缀，不复制原始记录；条件缺失降低可比性。', failure:'一侧无权访问则停止比较；数据未完整加载显示覆盖范围。并发更新时明确冻结位置，刷新由用户触发。', acceptance:['选定前缀不随新事件暗中变化；刷新才更换观察值。','相同时间、缺失调用和未知用量不造成误对齐。','每个指标能追到源事件，文件基线不同会提示不可直接归因。'], metric:'完成一次可追溯比较的时间；未匹配事件与未知字段比例。', deps:'F04 事件引用；F02 可增加持久文件对比。'},
+    {id:'F07', name:'上下文来源检查器', phase:'C', kind:'扩展请求可观察性', days:[6,9], value:4.2, confidence:'中等', keywords:'prompt context token 来源 裁剪', summary:'解释实际请求里包含哪些上下文，并在下一步提交前预览用户选择的变化。', current:'已有上下文占用、请求 header / context、system prompt diff 和工具目录检查。', delta:'按来源汇总已记录内容，链接具体输入；对可控制的下一步上下文提供显式变更预览。', flow:['选中已提交请求','查看来源贡献','定位大段内容','编辑下一步选择','预览后提交'], mvp:['先展示确实能从记录确定的来源；未知来源单列。','Token 分摊为估算时标明算法与误差，不能与供应商总量混用。','用户排除或替换下一步材料时显示变更，并经已有记录路径提交。'], nonGoals:['追溯恢复没有记录的来源元数据。','在浏览器内改写历史 prompt 或自动删除旧上下文。'], owners:[['system-prompt','packages/core/system-prompt/README.md'],['ui-conversation','packages/client/ui-conversation/README.md'],['ui-trajectory','packages/client/ui-trajectory/README.md'],['context','packages/context/README.md']], data:'来源标记不足时仅展示已知信息；新增来源数据必须由输入所有者记录。选择只作用于下一次请求，提交版本可由 Session 重建。', failure:'不支持来源细分的记录标未知；模型路由改变后重新计算预览。压缩后的摘要不能被误称为原文全部保留。', acceptance:['选定请求的展示与实际记录文本一致。','来源估算与总 Token 同屏时标明口径。','下一步选择可重放，历史请求保持不可变。'], metric:'定位最大上下文来源的时间；未知来源占比；估算与实际用量偏差。', deps:'输入来源元数据审计；首版只覆盖可确认来源。'},
+    {id:'F08', name:'开发任务配方', phase:'C', kind:'复用 Preset / Skill / Workflow', days:[5,8], value:3.7, confidence:'中等', keywords:'template 模板 配方 recipe 复用', summary:'把反复执行的排障、升级和测试流程变成参数明确、版本固定的任务入口。', current:'已有预设、Skill、Workflow 与 Schedule，支持组合和自动化。', delta:'提供统一的配方表单与预览，把所选组件和参数解析为一次具体任务。', flow:['选择配方','填写参数','检查所需能力','预览任务内容','确认启动'], mvp:['首批配方：失败测试修复、依赖升级评估、变更审阅。','复用已有配置 / schema 校验，参数显式传递而非 shell 字符串拼接。','记录配方版本、解析参数与最终输入；运行记录能回到该版本。'], nonGoals:['公开市场、远程任意代码安装。','另建工作流语言或默认定时执行。'], owners:[['ui-agent-preset','packages/client/ui-agent-preset/README.md'],['workflow','packages/workflow/workflow/README.md'],['skill','packages/skill/README.md']], data:'工作区保存配方定义；每次运行将解析后的具体版本通过已记录输入提交。配方声明能力需求，不授予新权限。', failure:'缺失组件和不合法参数在启动前报错；既有权限不足走原审批路径。删除配方不删除旧执行记录。', acceptance:['同一版本和参数产生可审阅且一致的任务输入。','含特殊字符的参数不改变命令结构。','切换配方版本不改变已开始任务，缺失插件不静默跳步。'], metric:'重复任务的配置时间；配方参数校验失败率与复用次数。', deps:'既有 preset / skill / workflow；F09 可复用预检报告。'},
+    {id:'F10', name:'最小诊断包', phase:'C', kind:'扩展已有日志导出', days:[5,8], value:3.8, confidence:'中等', keywords:'export 分享 脱敏 issue 诊断包', summary:'把排障所需的最小记录导出为可预览的独立副本，方便提交 Issue 或交给同事检查。', current:'原始日志导出可包含整个 Session 树与附件；遥测脱敏也有独立扩展点。', delta:'单独的诊断模式：限定事件范围、默认字段白名单、敏感字段预览与导出清单。', flow:['选失败范围','选择字段','预览导出副本','检查缺失与替换','下载本地文件'], mvp:['默认只含结构化错误与版本元数据；正文、附件和文件内容默认排除。','导出前展示真实副本、规则版本和排除清单。','保留事件关系的匿名引用，明确这是诊断材料，不保证可运行重放。'], nonGoals:['自动上传 Issue 或外部服务。','宣称正则替换能保证任意内容没有敏感信息。'], owners:[['session-log-export','packages/session-query/session-log-export/README.md'],['session-query','packages/session-query/session-query/README.md'],['session-telemetry','packages/session/session-telemetry/README.md']], data:'只转换导出副本，原始 Session 不变。受限范围固定在导出开始时；manifest 记录规则与省略项，不包含凭据值。', failure:'无法验证的字段默认省略；附件缺失和导出中断明确提示。自由文本需用户逐项纳入预览，无法检查的不作为已脱敏内容导出。', acceptance:['默认包不含工具正文、prompt、附件或文件字节。','预览与实际下载的字段集合一致，原日志摘要不变。','取消释放读取资源；两次并发导出不会混入对方范围。'], metric:'诊断包体积与排障信息完整度；人工检查发现的敏感字段数。', deps:'复用现有导出载体；字段白名单和失败样例需单独审阅。'}
+  ];
+  const $ = (selector) => document.querySelector(selector);
+  const $$ = (selector) => [...document.querySelectorAll(selector)];
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const list = (items) => '<ul>' + items.map(item => '<li>' + escapeHtml(item) + '</li>').join('') + '</ul>';
+  let activePhase = 'all';
+  let selectedFeature = 'F04';
+  function featureMarkup(feature) {
+    return '<div class="detail-title"><span class="badge ' + feature.phase.toLowerCase() + '">' + feature.id + ' · 发布 ' + feature.phase + '</span><h3>' + feature.name + '</h3></div>' +
+      '<p class="summary">' + feature.summary + '</p><div class="detail-facts"><span>' + feature.kind + '</span><span>估算 ' + feature.days.join('–') + ' 人日</span><span>可行性置信度：' + feature.confidence + '</span></div>' +
+      '<div class="detail-block"><h4>已有能力 → 新增内容</h4><p class="muted">' + feature.current + '</p><p>' + feature.delta + '</p></div>' +
+      '<div class="detail-block"><h4>用户流程</h4><ol class="flow">' + feature.flow.map(step => '<li>' + step + '</li>').join('') + '</ol></div>' +
+      '<div class="columns"><div class="detail-block"><h4>首版范围</h4>' + list(feature.mvp) + '</div><div class="detail-block"><h4>明确不包含</h4>' + list(feature.nonGoals) + '</div></div>' +
+      '<div class="detail-block"><h4>架构接入</h4><div class="links">' + feature.owners.map(([label, path]) => '<a href="' + path + '">' + label + '</a>').join('') + '</div><p class="small muted" style="margin-top:7px">' + feature.deps + '</p></div>' +
+      '<div class="detail-block"><h4>数据与恢复</h4><p>' + feature.data + '</p></div>' +
+      '<div class="detail-block"><h4>失败处理</h4><p>' + feature.failure + '</p></div>' +
+      '<div class="detail-block"><h4>验收条件</h4>' + list(feature.acceptance) + '</div>' +
+      '<div class="detail-block"><h4>上线后衡量</h4><p class="muted">' + feature.metric + '</p></div>';
+  }
+  function renderCatalog() {
+    const query = $('#feature-search').value.trim().toLocaleLowerCase();
+    const visible = features.filter(feature => (activePhase === 'all' || feature.phase === activePhase) && (feature.id + feature.name + feature.keywords + feature.summary).toLocaleLowerCase().includes(query));
+    if (visible.length && !visible.some(feature => feature.id === selectedFeature)) selectedFeature = visible[0].id;
+    $('#feature-rows').innerHTML = visible.map(feature => '<tr class="' + (selectedFeature === feature.id ? 'selected' : '') + '"><td><button type="button" data-feature="' + feature.id + '" aria-pressed="' + (selectedFeature === feature.id) + '"><strong>' + feature.name + '</strong><span>' + feature.id + ' · 价值 ' + feature.value.toFixed(1) + ' / 5</span></button></td><td><span class="badge ' + feature.phase.toLowerCase() + '">' + feature.phase + '</span></td><td>' + feature.days.join('–') + '</td></tr>').join('');
+    $('#feature-count').textContent = visible.length ? '显示 ' + visible.length + ' / 10 项；选择条目查看完整规格。' : '没有匹配的功能。清空搜索或切换批次后重试。';
+    $('#feature-detail').innerHTML = visible.length ? featureMarkup(features.find(feature => feature.id === selectedFeature)) : '<p class="empty">当前筛选下没有可展示的规格。</p>';
+  }
+  $('#feature-rows').addEventListener('click', event => {
+    const button = event.target.closest('[data-feature]');
+    if (!button) return;
+    selectedFeature = button.dataset.feature;
+    renderCatalog();
+    document.querySelector('[data-feature="' + selectedFeature + '"]').focus({preventScroll:true});
+  });
+  $$('.segments [data-phase]').forEach(button => button.addEventListener('click', () => {
+    activePhase = button.dataset.phase;
+    $$('.segments [data-phase]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    renderCatalog();
+  }));
+  $('#feature-search').addEventListener('input', renderCatalog);
+  $('#print-catalog').innerHTML = features.map(feature => '<article class="print-feature">' + featureMarkup(feature) + '</article>').join('');
+  $('#print-design').addEventListener('click', () => window.print());
+  renderCatalog();
+
+  const chart = $('#priority-chart');
+  const svgNs = 'http://www.w3.org/2000/svg';
+  function svgElement(tag, attributes, text) {
+    const element = document.createElementNS(svgNs, tag);
+    Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+    if (text !== undefined) element.textContent = text;
+    return element;
+  }
+  const xOf = value => 54 + (value - 2) / 10 * 440;
+  const yOf = value => 235 - (value - 3) / 2.2 * 204;
+  [3,3.5,4,4.5,5].forEach(value => {
+    chart.append(svgElement('line', {x1:54,x2:502,y1:yOf(value),y2:yOf(value),stroke:'#dce2de','stroke-dasharray':'3 5'}));
+    chart.append(svgElement('text', {x:41,y:yOf(value)+4,'text-anchor':'end'}, value));
+  });
+  [2,4,6,8,10,12].forEach(value => chart.append(svgElement('text', {x:xOf(value),y:256,'text-anchor':'middle'},value)));
+  chart.append(svgElement('text', {x:54,y:19},'日常价值 / 5'));
+  chart.append(svgElement('text', {x:502,y:277,'text-anchor':'end'},'预估工作量 / 人日'));
+  chart.append(svgElement('line', {x1:54,x2:502,y1:235,y2:235,stroke:'#9caba2'}));
+  features.forEach(feature => {
+    const point = svgElement('g', {class:'point',tabindex:0,role:'button','aria-label':feature.id + ' ' + feature.name + '，价值 ' + feature.value + '，估算 ' + feature.days.join('至') + ' 人日'});
+    const cx = xOf((feature.days[0]+feature.days[1])/2), cy = yOf(feature.value);
+    const fill = {A:'#16745a',B:'#3164a0',C:'#82718e'}[feature.phase];
+    point.append(svgElement('circle', {cx,cy,r:4.5,fill,stroke:'#fff','stroke-width':1}));
+    const offsets = {F01:[12,-8],F03:[12,-8],F04:[12,-5],F09:[12,0],F02:[12,0],F06:[12,0],F05:[12,10],F07:[-11,-5],F08:[-12,15],F10:[12,-7]};
+    const [dx,dy] = offsets[feature.id];
+    point.append(svgElement('text', {x:cx+dx,y:cy+dy,class:'dot-label','text-anchor':dx<0?'end':'start'}, feature.id));
+    point.append(svgElement('title', {}, feature.name + ' · ' + feature.days.join('–') + ' 人日（估算）'));
+    const select = () => {
+      activePhase = 'all'; selectedFeature = feature.id; $('#feature-search').value = '';
+      $$('.segments [data-phase]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.phase === 'all')));
+      renderCatalog(); $('#features').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+      document.querySelector('[data-feature="' + feature.id + '"]').focus({preventScroll:true});
+    };
+    point.addEventListener('click', select);
+    point.addEventListener('keydown', event => {if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); }});
+    chart.append(point);
+  });
+
+  const demoTabs = $$('[data-demo]');
+  function selectDemo(button) {
+    demoTabs.forEach(tab => {const active = tab === button; tab.setAttribute('aria-selected', String(active)); tab.tabIndex = active ? 0 : -1; $('#demo-' + tab.dataset.demo).hidden = !active;});
+  }
+  demoTabs.forEach((button, index) => {
+    button.addEventListener('click', () => selectDemo(button));
+    button.addEventListener('keydown', event => {
+      let target;
+      if(event.key === 'ArrowRight') target = demoTabs[(index+1)%demoTabs.length];
+      if(event.key === 'ArrowLeft') target = demoTabs[(index+demoTabs.length-1)%demoTabs.length];
+      if(event.key === 'Home') target = demoTabs[0];
+      if(event.key === 'End') target = demoTabs[demoTabs.length-1];
+      if(target) {event.preventDefault(); selectDemo(target); target.focus();}
+    });
+  });
+  const events = {
+    failure:{title:'边界用例失败', badge:'bad', label:'已记录失败', command:'pnpm exec vitest run tests/pagination.spec.ts', output:'Expected cursor: 20\nReceived cursor: 21\nExit code: 1', body:'错误输出指向分页游标断言。记录能确认该命令失败；偏移计算是否为根因仍需检查源码。', evidence:'证据：tool/call #119 → tool/result #120；相关文件 tests/pagination.spec.ts。'},
+    edit:{title:'游标计算已修改',badge:'info',label:'已记录修改',command:'src/pagination.ts',output:'- const nextCursor = offset + limit + 1\n+ const nextCursor = offset + limit',body:'编辑工具报告成功。修改位于失败后，是否解决问题要由后续验证确认。',evidence:'证据：edit 调用 #124 → 结果 #125；内容摘要从 rev-a0 变为 rev-a1。'},
+    pass:{title:'定向测试通过',badge:'good',label:'已记录验证',command:'pnpm exec vitest run tests/pagination.spec.ts',output:'Test Files  1 passed\nTests       8 passed\nExit code: 0',body:'记录确认该命令在 rev-a1 上退出成功；它只验证此测试范围，不能代表仓库全部检查通过。',evidence:'证据：bash 调用 #128 → 结果 #129；完整 stdout 与 argv 保持可查。'}
+  };
+  function renderEvent(key) {
+    const data = events[key];
+    $('#debug-detail').innerHTML = '<h3>' + data.title + ' <span class="badge ' + data.badge + '">' + data.label + '</span></h3><code>' + escapeHtml(data.command) + '</code><pre>' + escapeHtml(data.output) + '</pre><p>' + data.body + '</p><p class="muted small" style="margin-top:9px">' + data.evidence + '</p>' + (key === 'failure' ? '<button class="primary" type="button" id="prepare-draft">生成修复草稿</button><div id="draft-result" aria-live="polite"></div>' : '');
+    $$('[data-event]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.event === key)));
+    if(key === 'failure') $('#prepare-draft').addEventListener('click', event => {
+      $('#draft-result').innerHTML = '<div class="draft"><strong>任务草稿 · 尚未提交</strong><p>检查 #120 对应的分页断言与游标计算，修复后运行同一定向测试。保留实际执行结果，并确认修改范围与验收标准一致。</p></div>';
+      event.currentTarget.disabled = true; event.currentTarget.textContent = '草稿已生成';
+    });
+  }
+  $$('[data-event]').forEach(button => button.addEventListener('click', () => renderEvent(button.dataset.event)));
+  renderEvent('failure');
+  $('#simulate-edit').addEventListener('change', event => {
+    const stale = event.target.checked;
+    $$('.revision-status').forEach(badge => {badge.textContent=stale?'待复验':'已验证';badge.className='badge revision-status ' + (stale?'warn':'good');});
+    $('#acceptance-badge').textContent=stale?'1 / 3 当前有效':'3 / 3 已验证'; $('#acceptance-badge').className='badge ' + (stale?'warn':'good');
+    $('#delivery-badge').textContent=stale?'等待复验':'可提交审阅'; $('#delivery-badge').className='badge ' + (stale?'warn':'good');
+    $('#acceptance-explanation').textContent=stale?'代码已变为 rev-a2，两个 rev-a1 上的验证结果保留为历史证据，不能用于当前交付。':'验证证据与当前修订一致。完成验收不会自动提交代码或合并 PR。';
+  });
+  function renderComparison() {
+    const focused = $('#compare-candidate').value === 'focused';
+    const name = focused ? 'B' : 'C', tokens = focused ? 18600 : 32400, time = focused ? 78 : 126;
+    $('#compare-name-token').textContent=name; $('#compare-name-time').textContent=name;
+    $('#compare-token').textContent=tokens.toLocaleString('en-US'); $('#compare-time').textContent=time+' s';
+    $('#compare-token-bar').style.width=(tokens/36000*100)+'%'; $('#compare-time-bar').style.width=(time/150*100)+'%';
+    $('#compare-delta').textContent=focused?'样例 B 比 A 少记录 6,200 Token（25%），耗时少 18 s；两侧定向用例均通过，但上下文不同，不能据此推断 B 的综合质量更高。':'样例 C 比 A 多记录 7,600 Token，耗时多 30 s；C 额外运行集成检查，两次验证范围不同，耗时不能直接评价效率。';
+  }
+  $('#compare-candidate').addEventListener('change', renderComparison); renderComparison();
+</script>
+</body>
+</html>

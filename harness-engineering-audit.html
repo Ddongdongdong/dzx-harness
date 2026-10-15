@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeepSeek Harness 工程优化审计</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f5;
+      --surface: #ffffff;
+      --surface-2: #eef1ef;
+      --ink: #17201d;
+      --muted: #5d6863;
+      --line: #d9dfdc;
+      --teal: #087f6d;
+      --teal-soft: #d9eee9;
+      --orange: #cf6b19;
+      --orange-soft: #fae8d8;
+      --red: #b83b43;
+      --red-soft: #f6dfe1;
+      --blue: #2c63a6;
+      --blue-soft: #dfe9f5;
+      --shadow: 0 12px 34px rgba(23, 32, 29, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    a { color: var(--teal); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    button { font: inherit; }
+    .shell { max-width: 1240px; margin: 0 auto; padding: 0 28px 72px; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(244, 246, 245, 0.94);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-inner {
+      max-width: 1240px;
+      min-height: 58px;
+      margin: 0 auto;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand { font-weight: 700; }
+    .nav { display: flex; flex-wrap: wrap; gap: 18px; }
+    .nav a { color: var(--muted); text-decoration: none; font-size: 13px; }
+    .nav a:hover, .nav a:focus-visible { color: var(--ink); }
+
+    .hero {
+      padding: 66px 0 36px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.7fr);
+      gap: 46px;
+      align-items: end;
+    }
+    .eyebrow { margin: 0 0 10px; color: var(--teal); font-weight: 700; font-size: 13px; }
+    h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: 0; }
+    h1 { max-width: 820px; font-size: 48px; font-weight: 760; }
+    h2 { font-size: 28px; font-weight: 740; }
+    h3 { font-size: 18px; font-weight: 720; }
+    .hero p { max-width: 760px; margin: 20px 0 0; color: var(--muted); font-size: 17px; }
+    .hero-meta { border-left: 3px solid var(--teal); padding-left: 20px; color: var(--muted); }
+    .hero-meta strong { display: block; color: var(--ink); font-size: 20px; margin-bottom: 5px; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 12px 0 56px;
+    }
+    .metric {
+      min-height: 126px;
+      padding: 22px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 4px 18px rgba(23, 32, 29, 0.04);
+    }
+    .metric-value { font-size: 32px; font-weight: 760; line-height: 1; font-variant-numeric: tabular-nums; }
+    .metric-label { margin-top: 12px; color: var(--muted); font-size: 13px; }
+
+    section { padding: 34px 0 42px; scroll-margin-top: 76px; }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+    .section-head p { max-width: 680px; margin: 0; color: var(--muted); }
+    .rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+    .summary-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 24px; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 26px;
+      box-shadow: var(--shadow);
+    }
+    .panel h3 { margin-bottom: 14px; }
+    .panel p { color: var(--muted); margin: 0 0 12px; }
+    .panel p:last-child { margin-bottom: 0; }
+    .verdict {
+      display: grid;
+      grid-template-columns: 4px 1fr;
+      gap: 16px;
+      align-items: stretch;
+      padding: 16px 0;
+      border-top: 1px solid var(--line);
+    }
+    .verdict:first-of-type { border-top: 0; padding-top: 0; }
+    .verdict:last-child { padding-bottom: 0; }
+    .verdict-mark { border-radius: 2px; background: var(--teal); }
+    .verdict.warn .verdict-mark { background: var(--orange); }
+    .verdict.stop .verdict-mark { background: var(--red); }
+    .verdict strong { display: block; margin-bottom: 3px; }
+    .verdict span { color: var(--muted); font-size: 13px; }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+    .arch-node {
+      position: relative;
+      min-height: 144px;
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--blue);
+      border-radius: 6px;
+    }
+    .arch-node:nth-child(2) { border-top-color: var(--teal); }
+    .arch-node:nth-child(3) { border-top-color: var(--orange); }
+    .arch-node:nth-child(4) { border-top-color: var(--red); }
+    .arch-node:nth-child(5) { border-top-color: var(--blue); }
+    .arch-node:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      right: -18px;
+      top: 50%;
+      z-index: 2;
+      width: 24px;
+      height: 24px;
+      margin-top: -12px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      background: var(--bg);
+      font-weight: 700;
+    }
+    .arch-node small { display: block; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+    .arch-caption { margin: 16px 0 0; color: var(--muted); font-size: 13px; }
+
+    .charts { display: grid; grid-template-columns: 1.45fr 0.75fr; gap: 24px; }
+    .chart-panel { min-width: 0; }
+    .chart-title { display: flex; justify-content: space-between; gap: 20px; align-items: baseline; margin-bottom: 14px; }
+    .chart-title span { color: var(--muted); font-size: 12px; }
+    .bar-chart { width: 100%; aspect-ratio: 760 / 440; display: block; }
+    .bar-chart text, .donut text { font-family: inherit; fill: var(--ink); }
+    .bar-chart .muted, .donut .muted { fill: var(--muted); }
+    .donut-wrap { min-height: 360px; display: grid; place-items: center; }
+    .donut { width: min(100%, 360px); aspect-ratio: 1; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: -18px; }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+    .matrix-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr); gap: 24px; }
+    .matrix {
+      position: relative;
+      min-height: 480px;
+      background:
+        linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 25% 25%,
+        linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 25% 25%,
+        var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .axis-label { position: absolute; color: var(--muted); font-size: 12px; z-index: 1; }
+    .axis-y { top: 12px; left: 14px; }
+    .axis-x { right: 14px; bottom: 10px; }
+    .point {
+      position: absolute;
+      transform: translate(-50%, 50%);
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--teal);
+      box-shadow: 0 5px 14px rgba(23, 32, 29, 0.18);
+      cursor: pointer;
+      font-weight: 760;
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+    .point[data-kind="performance"] { background: var(--blue); }
+    .point[data-kind="maintainability"] { background: var(--orange); }
+    .point[data-kind="cleanup"] { background: var(--teal); }
+    .point:hover, .point:focus-visible, .point[aria-pressed="true"] {
+      transform: translate(-50%, 50%) scale(1.14);
+      box-shadow: 0 8px 20px rgba(23, 32, 29, 0.28);
+      outline: 3px solid var(--surface);
+    }
+    .matrix-label {
+      position: absolute;
+      transform: translate(-50%, 0);
+      width: 122px;
+      color: var(--ink);
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.35;
+      pointer-events: none;
+    }
+    .detail-panel { min-height: 480px; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 20px; }
+    .tag { padding: 3px 8px; border-radius: 3px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
+    .detail-list { margin: 0; padding-left: 20px; color: var(--muted); }
+    .detail-list li { margin-bottom: 10px; }
+    .detail-source { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; }
+
+    .filters { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: 6px; }
+    .filter {
+      border: 0;
+      border-radius: 4px;
+      padding: 7px 11px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .filter[aria-pressed="true"] { background: var(--ink); color: #fff; }
+    .opportunity-list { display: grid; gap: 12px; }
+    .opportunity {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1.35fr) minmax(220px, 0.8fr) 132px;
+      gap: 20px;
+      align-items: start;
+      padding: 22px 24px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .opportunity[hidden] { display: none; }
+    .rank { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 760; }
+    .opportunity p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .evidence { color: var(--muted); font-size: 13px; }
+    .score { display: grid; gap: 7px; font-size: 12px; color: var(--muted); }
+    .score-line { display: flex; justify-content: space-between; gap: 8px; }
+    .score-line b { color: var(--ink); font-variant-numeric: tabular-nums; }
+    .status { margin-top: 10px; display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: 700; }
+    .status.measure { background: var(--blue-soft); color: var(--blue); }
+    .status.direct { background: var(--teal-soft); color: var(--teal); }
+    .status.design { background: var(--orange-soft); color: var(--orange); }
+
+    .roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .phase { border-top: 4px solid var(--ink); padding: 18px 20px 20px; background: var(--surface); border-radius: 4px; }
+    .phase:nth-child(2) { border-top-color: var(--teal); }
+    .phase:nth-child(3) { border-top-color: var(--orange); }
+    .phase-time { color: var(--muted); font-size: 12px; margin-bottom: 9px; }
+    .phase ul { margin: 12px 0 0; padding-left: 18px; color: var(--muted); }
+    .phase li { margin-bottom: 7px; }
+
+    .phase-results { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); gap: 24px; }
+    .phase-followup { margin-top: 24px; }
+    .result-chart { display: grid; gap: 20px; }
+    .result-chart-group { display: grid; gap: 9px; }
+    .result-chart-head { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 13px; }
+    .result-chart-head strong { color: var(--ink); }
+    .result-track { height: 20px; background: var(--surface-2); overflow: hidden; }
+    .result-bar { height: 100%; background: var(--blue); }
+    .result-bar.hot { background: var(--teal); }
+    .result-bar.memory { background: var(--orange); }
+    .result-note { margin: 16px 0 0; color: var(--muted); font-size: 13px; }
+    .benchmark-delta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+    .benchmark-stat { padding: 16px; background: var(--surface-2); border-radius: 4px; }
+    .benchmark-stat span { display: block; color: var(--muted); font-size: 12px; }
+    .benchmark-stat strong { display: block; margin-top: 4px; font-size: 24px; font-variant-numeric: tabular-nums; }
+    .benchmark-stat.good strong { color: var(--teal); }
+    .benchmark-stat.caution strong { color: var(--orange); }
+    .delivery-list { display: grid; gap: 0; }
+    .delivery { display: grid; grid-template-columns: 88px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
+    .delivery:first-child { border-top: 0; padding-top: 0; }
+    .delivery:last-child { padding-bottom: 0; }
+    .delivery-state { font-size: 12px; font-weight: 700; color: var(--teal); }
+    .delivery-state.caution { color: var(--orange); }
+    .delivery strong { display: block; margin-bottom: 3px; }
+    .delivery span { color: var(--muted); font-size: 13px; }
+    .sample-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .sample-strip code { padding: 2px 6px; background: var(--surface-2); border-radius: 3px; color: var(--ink); }
+
+    .guardrails { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .guardrail { padding: 18px 20px; border-left: 4px solid var(--red); background: var(--red-soft); border-radius: 4px; }
+    .guardrail strong { display: block; margin-bottom: 4px; }
+    .guardrail span { color: #683238; font-size: 13px; }
+
+    .method { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 24px; }
+    .method ul { margin: 0; padding-left: 20px; color: var(--muted); }
+    .method li { margin-bottom: 8px; }
+    .footnote { margin-top: 22px; color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 900px) {
+      .hero, .summary-grid, .charts, .matrix-layout, .method, .phase-results { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .architecture { grid-template-columns: 1fr; }
+      .arch-node:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -18px; margin: 0 -12px 0 0; }
+      .opportunity { grid-template-columns: 52px 1fr; }
+      .opportunity .evidence, .opportunity .score { grid-column: 2; }
+      .roadmap { grid-template-columns: 1fr; }
+      .guardrails { grid-template-columns: 1fr; }
+      .benchmark-delta { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .shell, .topbar-inner { padding-left: 16px; padding-right: 16px; }
+      .topbar-inner { align-items: flex-start; padding-top: 12px; padding-bottom: 12px; }
+      .nav { display: none; }
+      .hero { padding-top: 44px; }
+      h1 { font-size: 36px; }
+      .metrics { grid-template-columns: 1fr; }
+      .section-head { display: block; }
+      .section-head p { margin-top: 10px; }
+      .filters { margin-top: 16px; }
+      .panel { padding: 20px; }
+      .matrix { min-height: 430px; }
+      .opportunity { grid-template-columns: 44px 1fr; gap: 14px; padding: 18px; }
+    }
+    @media print {
+      .topbar, .filters { display: none; }
+      body { background: #fff; }
+      .shell { max-width: none; padding: 0; }
+      .panel, .metric, .opportunity { box-shadow: none; break-inside: avoid; }
+      section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">DSH / ENGINEERING AUDIT</div>
+      <nav class="nav" aria-label="报告章节">
+        <a href="#overview">结论</a>
+        <a href="#architecture">架构</a>
+        <a href="#surface">规模</a>
+        <a href="#matrix">优先级</a>
+        <a href="#opportunities">建议</a>
+        <a href="#roadmap">路线图</a>
+        <a href="#phase-one">阶段一</a>
+        <a href="#phase-two">阶段二</a>
+        <a href="#phase-three">阶段三</a>
+        <a href="harness-feature-design.html">新增功能设计</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="hero">
+      <div>
+        <p class="eyebrow">代码证据驱动 · 2026-10-02</p>
+        <h1>DeepSeek Harness 工程优化审计</h1>
+        <p>结论不是“重写核心”。当前架构的能力拆分与持久化约束总体成熟，真正值得优先处理的是工程控制面的重复扫描、生成目录的体积与变更噪声、热点 UI 文件的责任密度，以及少数已失去消费者的兼容表面。</p>
+      </div>
+      <div class="hero-meta">
+        <strong>建议策略：先减维护成本，再测运行时收益</strong>
+        基于架构文档、全仓静态清点、依赖中心度、热点文件、近期变更频率、现有 Agent Note 与性能基准决策。未把文件大小直接等同为性能问题。
+      </div>
+    </div>
+
+    <div class="metrics" aria-label="仓库关键规模">
+      <div class="metric"><div class="metric-value">299</div><div class="metric-label">packages/ 下的 workspace 包</div></div>
+      <div class="metric"><div class="metric-value">430k</div><div class="metric-label">非测试 TypeScript 行数（约）</div></div>
+      <div class="metric"><div class="metric-value">506k</div><div class="metric-label">测试 TypeScript 行数（约）</div></div>
+      <div class="metric"><div class="metric-value">1,743</div><div class="metric-label">spec / e2e / perf 文件</div></div>
+    </div>
+
+    <section id="overview">
+      <div class="section-head">
+        <h2>执行结论</h2>
+        <p>优化重点应落在“高频改动 × 高责任密度 × 可验证成本”交集，而不是按包数量做机械合并。</p>
+      </div>
+      <div class="summary-grid">
+        <article class="panel">
+          <h3>总体判断</h3>
+          <p>Harness 的核心约束相互一致：插件通过能力接口组合，模型可见输入可由 Session 日志重建，Host/Client 编译面显式分离，发布过的 Session 代际不可覆盖。这些约束解释了相当一部分代码量，不能当作普通重复代码处理。</p>
+          <p>工程上的主要机会集中在外围：多个静态 gate 分别构建完整 TypeScript Program；Host/Client 的生成式 Cordis 目录经首轮压缩后仍有 709.3 KB；几个高频 UI 文件同时承担数据建模、状态、交互和渲染；测试按文件并行，但存在 2,000–6,000 行的单文件长尾。</p>
+        </article>
+        <aside class="panel" aria-label="判断分层">
+          <div class="verdict"><div class="verdict-mark"></div><div><strong>阶段一已落地</strong><span>已删除 workspace 死参数和过渡期迁移脚本；测试拆分完成，但 isolated 墙钟没有获得性能收益。</span></div></div>
+          <div class="verdict warn"><div class="verdict-mark"></div><div><strong>先测再改</strong><span>共享静态分析索引、压缩生成目录、自动 affected-check 选择，都需要基线和负向对照。</span></div></div>
+          <div class="verdict stop"><div class="verdict-mark"></div><div><strong>不建议触碰</strong><span>双 LLM 适配器、Session persistence 能力接口、发布代际和 wire/durable 校验不是“冗余”。</span></div></div>
+        </aside>
+      </div>
+    </section>
+
+    <hr class="rule">
+
+    <section id="architecture">
+      <div class="section-head">
+        <h2>Harness 结构与优化落点</h2>
+        <p>端到端链路越靠左，越接近可替换的能力定义；越靠右，越接近持久化与用户投影。优化必须保留中间的事件记录与生命周期语义。</p>
+      </div>
+      <div class="architecture" role="img" aria-label="从配置装配到客户端投影的 Harness 主链路">
+        <div class="arch-node"><strong>Profile / Cordis</strong><small>Loader 组合插件、配置与作用域。固定成本来自包发现、解析和构建。</small></div>
+        <div class="arch-node"><strong>能力接口</strong><small>Service Definition / Provider / Consumer。小包常是刻意保持的替换点。</small></div>
+        <div class="arch-node"><strong>Agent loop</strong><small>pre-step、request、tools、stream、stop 等事件驱动一个回合。</small></div>
+        <div class="arch-node"><strong>Session log</strong><small>模型可见输入的权威记录；迁移、发布、恢复承担兼容义务。</small></div>
+        <div class="arch-node"><strong>Host / Client</strong><small>投影、RPC、会话历史与 Web UI。当前最大的源码与交互复杂度集中区。</small></div>
+      </div>
+      <p class="arch-caption">优化落点：构建/校验共享索引位于装配之前；目录压缩位于能力描述投影；UI 拆分位于 Client 消费端；Session 主链保持行为不变。</p>
+    </section>
+
+    <hr class="rule">
+
+    <section id="surface">
+      <div class="section-head">
+        <h2>代码面与维护面</h2>
+        <p>左图展示生产 TypeScript 的集中度；右图说明测试代码已经大于生产代码。数值是静态行数，用于定位审计范围，不是质量评分。</p>
+      </div>
+      <div class="charts">
+        <article class="panel chart-panel">
+          <div class="chart-title"><h3>主要 package group 的生产代码量</h3><span>行数，排除 tests / lib</span></div>
+          <svg class="bar-chart" viewBox="0 0 760 440" role="img" aria-labelledby="bar-title bar-desc">
+            <title id="bar-title">主要 package group 的生产 TypeScript 行数</title>
+            <desc id="bar-desc">Client 约 107,308 行，显著高于 Experimental 约 39,066 行和其他组。</desc>
+            <g transform="translate(112 20)">
+              <g stroke="#d9dfdc" stroke-width="1">
+                <line x1="0" x2="0" y1="0" y2="376"/><line x1="142" x2="142" y1="0" y2="376"/><line x1="284" x2="284" y1="0" y2="376"/><line x1="426" x2="426" y1="0" y2="376"/><line x1="568" x2="568" y1="0" y2="376"/>
+              </g>
+              <g font-size="12">
+                <text class="muted" x="0" y="398" text-anchor="middle">0</text><text class="muted" x="142" y="398" text-anchor="middle">25k</text><text class="muted" x="284" y="398" text-anchor="middle">50k</text><text class="muted" x="426" y="398" text-anchor="middle">75k</text><text class="muted" x="568" y="398" text-anchor="middle">100k</text>
+              </g>
+              <g font-size="12" dominant-baseline="middle">
+                <text x="-12" y="18" text-anchor="end">client</text><rect x="0" y="6" width="610" height="24" rx="2" fill="#087f6d"/><text x="618" y="18">107.3k</text>
+                <text x="-12" y="55" text-anchor="end">experimental</text><rect x="0" y="43" width="222" height="24" rx="2" fill="#2c63a6"/><text x="230" y="55">39.1k</text>
+                <text x="-12" y="92" text-anchor="end">extensions</text><rect x="0" y="80" width="109" height="24" rx="2" fill="#cf6b19"/><text x="117" y="92">19.2k</text>
+                <text x="-12" y="129" text-anchor="end">api</text><rect x="0" y="117" width="101" height="24" rx="2" fill="#cf6b19"/><text x="109" y="129">17.8k</text>
+                <text x="-12" y="166" text-anchor="end">session</text><rect x="0" y="154" width="91" height="24" rx="2" fill="#2c63a6"/><text x="99" y="166">16.0k</text>
+                <text x="-12" y="203" text-anchor="end">llm</text><rect x="0" y="191" width="83" height="24" rx="2" fill="#087f6d"/><text x="91" y="203">14.6k</text>
+                <text x="-12" y="240" text-anchor="end">core</text><rect x="0" y="228" width="83" height="24" rx="2" fill="#087f6d"/><text x="91" y="240">14.5k</text>
+                <text x="-12" y="277" text-anchor="end">subagent</text><rect x="0" y="265" width="63" height="24" rx="2" fill="#2c63a6"/><text x="71" y="277">11.2k</text>
+                <text x="-12" y="314" text-anchor="end">test-support</text><rect x="0" y="302" width="63" height="24" rx="2" fill="#cf6b19"/><text x="71" y="314">11.0k</text>
+                <text x="-12" y="351" text-anchor="end">typert</text><rect x="0" y="339" width="50" height="24" rx="2" fill="#2c63a6"/><text x="58" y="351">8.7k</text>
+              </g>
+            </g>
+          </svg>
+        </article>
+        <article class="panel chart-panel">
+          <div class="chart-title"><h3>生产与测试代码</h3><span>TypeScript 行数（约）</span></div>
+          <div class="donut-wrap">
+            <svg class="donut" viewBox="0 0 300 300" role="img" aria-labelledby="donut-title donut-desc">
+              <title id="donut-title">生产代码与测试代码的行数对比</title>
+              <desc id="donut-desc">生产代码约 430,000 行，测试代码约 506,000 行，测试约占二者总和的 54%。</desc>
+              <circle cx="150" cy="150" r="95" fill="none" stroke="#e7ebe9" stroke-width="38"/>
+              <circle cx="150" cy="150" r="95" fill="none" stroke="#087f6d" stroke-width="38" stroke-dasharray="274.7 597" transform="rotate(-90 150 150)"/>
+              <circle cx="150" cy="150" r="95" fill="none" stroke="#cf6b19" stroke-width="38" stroke-dasharray="322.3 597" stroke-dashoffset="-274.7" transform="rotate(-90 150 150)"/>
+              <text x="150" y="142" text-anchor="middle" font-size="34" font-weight="700">54%</text>
+              <text class="muted" x="150" y="168" text-anchor="middle" font-size="13">测试代码占比</text>
+            </svg>
+          </div>
+          <div class="legend"><span><i class="swatch" style="background:#087f6d"></i>生产 430k</span><span><i class="swatch" style="background:#cf6b19"></i>测试 506k</span></div>
+        </article>
+      </div>
+    </section>
+
+    <hr class="rule">
+
+    <section id="matrix">
+      <div class="section-head">
+        <h2>机会优先级矩阵</h2>
+        <p>横轴是实施成本，纵轴是预期收益。点击编号查看证据与验证方式。位置用于排序讨论，不替代真实基准。</p>
+      </div>
+      <div class="matrix-layout">
+        <div class="matrix" aria-label="工程优化机会的收益与成本矩阵">
+          <span class="axis-label axis-y">收益高 ↑</span><span class="axis-label axis-x">实施成本高 →</span>
+          <button class="point" style="left:56%;bottom:82%" data-id="1" data-kind="performance" aria-pressed="true" aria-label="机会 1：静态分析索引复用">1</button><span class="matrix-label" style="left:56%;bottom:70%">静态分析索引复用</span>
+          <button class="point" style="left:49%;bottom:68%" data-id="2" data-kind="performance" aria-pressed="false" aria-label="机会 2：压缩生成目录">2</button><span class="matrix-label" style="left:49%;bottom:56%">压缩生成目录</span>
+          <button class="point" style="left:25%;bottom:73%" data-id="3" data-kind="maintainability" aria-pressed="false" aria-label="机会 3：拆分超大测试文件">3</button><span class="matrix-label" style="left:25%;bottom:61%">拆分超大测试文件</span>
+          <button class="point" style="left:54%;bottom:56%" data-id="4" data-kind="maintainability" aria-pressed="false" aria-label="机会 4：拆分高频 UI 热点">4</button><span class="matrix-label" style="left:54%;bottom:44%">拆分高频 UI 热点</span>
+          <button class="point" style="left:14%;bottom:31%" data-id="5" data-kind="cleanup" aria-pressed="false" aria-label="机会 5：清除失效表面">5</button><span class="matrix-label" style="left:14%;bottom:19%">清除失效表面</span>
+          <button class="point" style="left:78%;bottom:63%" data-id="6" data-kind="performance" aria-pressed="false" aria-label="机会 6：自动选择受影响检查">6</button><span class="matrix-label" style="left:78%;bottom:51%">自动选择受影响检查</span>
+        </div>
+        <aside class="panel detail-panel" aria-live="polite">
+          <h3 id="detail-title">1. 复用静态分析索引</h3>
+          <div class="tag-row"><span class="tag" id="detail-impact">收益 5/5</span><span class="tag" id="detail-effort">成本 3/5</span><span class="tag" id="detail-confidence">信心 4/5</span></div>
+          <ul class="detail-list" id="detail-list">
+            <li>`run-gates` 已明确记录：多个 doc gate 各自构建完整 TypeScript Program，因此本地并发被限制为 4。</li>
+            <li>仓库至少有 5 个独立 Program 构建入口；Typert 自身已经提供 `WorkspaceCaches`。</li>
+            <li>先记录每个 gate 的 wall time、峰值 RSS 与 Program 构建次数，再合并同进程 gate 或共享可序列化中间模型。</li>
+          </ul>
+          <div class="detail-source" id="detail-source">验证：`doc-sync` 冷/热基线 + 原始实现负向对照；不得以关闭诊断换速度。</div>
+        </aside>
+      </div>
+    </section>
+
+    <hr class="rule">
+
+    <section id="opportunities">
+      <div class="section-head">
+        <div><h2>优化建议与代码证据</h2><p>按建议的启动顺序排列；筛选只改变视图，不改变优先级。</p></div>
+        <div class="filters" role="group" aria-label="建议类别筛选">
+          <button class="filter" data-filter="all" aria-pressed="true">全部</button>
+          <button class="filter" data-filter="performance" aria-pressed="false">性能</button>
+          <button class="filter" data-filter="maintainability" aria-pressed="false">可维护性</button>
+          <button class="filter" data-filter="cleanup" aria-pressed="false">简化</button>
+        </div>
+      </div>
+      <div class="opportunity-list">
+        <article class="opportunity" data-category="performance">
+          <div class="rank">1</div>
+          <div><h3>让 AST 密集型 gate 共享一次仓库分析</h3><p>`doc-sync` 已将 Host Cordis 目录与关系图新鲜度检查合并为单个协调器，共享一次 Typert 投影；独立命令继续保留用于定位失败。</p><span class="status direct">首个试点已完成</span></div>
+          <div class="evidence"><strong>实测</strong><br>等价双 verifier workload 墙钟中位数从 55.54s 降至 33.94s（-38.9%）；峰值 RSS 中位数从 984 MiB 增至 1,016 MiB（+3.3%）。</div>
+          <div class="score"><div class="score-line"><span>收益</span><b>5 / 5</b></div><div class="score-line"><span>成本</span><b>3 / 5</b></div><div class="score-line"><span>信心</span><b>4 / 5</b></div></div>
+        </article>
+
+        <article class="opportunity" data-category="performance">
+          <div class="rank">2</div>
+          <div><h3>压缩 Cordis 生成目录的表示，而不是删减能力说明</h3><p>Client slot 目录现按 cardinality 与 scope 共享注册选项和标准属性数组，查询层继续复制输出，模型看到的 JSON 工作量保持不变。</p><span class="status direct">首轮已完成</span></div>
+          <div class="evidence"><strong>实测</strong><br>生成目录合计减少 51,104 bytes；Client bundle 减少 48,972 bytes（-16.4%）；完整 Client sweep 仍输出 224,384 bytes。</div>
+          <div class="score"><div class="score-line"><span>收益</span><b>4 / 5</b></div><div class="score-line"><span>成本</span><b>3 / 5</b></div><div class="score-line"><span>信心</span><b>5 / 5</b></div></div>
+        </article>
+
+        <article class="opportunity" data-category="maintainability">
+          <div class="rank">3</div>
+          <div><h3>按资源与行为拆分超大测试文件，改善并行尾部</h3><p>`tools.spec.ts` 已按 ToolRuntime 与 schema/validation 责任拆分；用例数保持 137。该试点改善文件责任密度，但 isolated 执行更慢，不能据此宣称测试性能提升。</p><span class="status design">试点已测</span></div>
+          <div class="evidence"><strong>实测</strong><br>原文件 2,827 行；拆分后为 2,087 + 771 行。墙钟中位数从 2.03s 增至 3.89s，原始样本显示双文件启动开销与明显方差。</div>
+          <div class="score"><div class="score-line"><span>收益</span><b>4 / 5</b></div><div class="score-line"><span>成本</span><b>2 / 5</b></div><div class="score-line"><span>信心</span><b>4 / 5</b></div></div>
+        </article>
+
+        <article class="opportunity" data-category="maintainability">
+          <div class="rank">4</div>
+          <div><h3>在原 package 内拆分 UI 热点的模型、交互与视图</h3><p>`TrajectoryTable.tsx` 不应继续同时拥有记录归一化、折叠、请求边界、指标格式化、详情 inspector、虚拟列表和渲染。保持 package 与 public API 不变，纯模型、inspector 解析、prompt diff 和工具目录视图已拆分。</p><span class="status direct">持续拆分</span></div>
+          <div class="evidence"><strong>证据</strong><br>`TrajectoryTable.tsx` 3,511 行、约 58 个函数、66 次 React Hook 使用，近半年当前路径 63 次提交触达；`WorkspaceBrowser.tsx` 1,405 行、60 次 Hook 使用。</div>
+          <div class="score"><div class="score-line"><span>收益</span><b>4 / 5</b></div><div class="score-line"><span>成本</span><b>3 / 5</b></div><div class="score-line"><span>信心</span><b>5 / 5</b></div></div>
+        </article>
+
+        <article class="opportunity" data-category="cleanup">
+          <div class="rank">5</div>
+          <div><h3>清除已经失去生产消费者的 API 与过渡工具</h3><p>`WorkspaceRegistry.create` 现在只接受 path；临时 packed-session fixture 迁移 CLI、命令与过渡文档已经移除，永久只读布局检查继续保留。</p><span class="status direct">已完成</span></div>
+          <div class="evidence"><strong>实测</strong><br>生产调用均只传 path；GitHub REST 实时清单显示 open PR 为 0；workspace 与 fixture layout 聚焦测试共 71 个用例通过。</div>
+          <div class="score"><div class="score-line"><span>收益</span><b>2 / 5</b></div><div class="score-line"><span>成本</span><b>1 / 5</b></div><div class="score-line"><span>信心</span><b>5 / 5</b></div></div>
+        </article>
+
+        <article class="opportunity" data-category="performance">
+          <div class="rank">6</div>
+          <div><h3>从依赖图生成本地 affected-check 建议</h3><p>`affected-check` 读取显式 Git base 与完整 worktree 变化，计算 runtime/peer 消费方，输出命令、原因和未映射路径；它不执行命令，也不替代 CI。</p><span class="status direct">首版已完成</span></div>
+          <div class="evidence"><strong>实测</strong><br>直接消费方：Session 99、LLM 92、Agent 75；传递消费方分别为 161、178、131。真实工作树演练生成确定性的 version 1 JSON。</div>
+          <div class="score"><div class="score-line"><span>收益</span><b>4 / 5</b></div><div class="score-line"><span>成本</span><b>4 / 5</b></div><div class="score-line"><span>信心</span><b>3 / 5</b></div></div>
+        </article>
+      </div>
+    </section>
+
+    <hr class="rule">
+
+    <section id="roadmap">
+      <div class="section-head"><h2>建议路线图</h2><p>每阶段都应形成可独立审查的结果；性能项需要原实现负向对照，简化项需要调用点证明。</p></div>
+      <div class="roadmap">
+        <article class="phase"><div class="phase-time">阶段 1 · 已完成</div><h3>建立基线与低风险清理</h3><ul><li>已记录 `doc-sync` 冷/热耗时与 RSS。</li><li>已删除 workspace create 的死参数。</li><li>已拆分一个超大 spec，并记录负向墙钟结果。</li><li>已确认 open PR 为 0 并移除过渡迁移 CLI。</li></ul></article>
+        <article class="phase"><div class="phase-time">阶段 2 · 进行中</div><h3>减少重复解析与热点责任</h3><ul><li>共享 Typert 投影试点已完成并保留。</li><li>Client slot 目录首轮压缩已完成，源码与 bundle 预算同步收紧。</li><li>Trajectory 纯模型、inspector 解析、prompt diff 与工具目录视图拆分已完成。</li><li>第二批长尾 spec 与套件级 CI 并行收益仍待验证。</li></ul></article>
+        <article class="phase"><div class="phase-time">阶段 3 · 进行中</div><h3>固化工程反馈回路</h3><ul><li>目录运行时 benchmark 已接入必需 lane，并完成预算负向控制。</li><li>只建议、不替代 CI 的 affected-check 首版已完成。</li><li>源码预算与 built bundle 原始字节预算已分别接入。</li><li>Client 浏览器冷加载尚未校准；Agent Note 语义复核仍只完成首批。</li></ul></article>
+      </div>
+    </section>
+
+    <hr class="rule">
+
+    <section id="phase-one">
+      <div class="section-head"><div><h2>阶段一执行结果</h2><p>以下均为 2026-10-02 在当前工作树上的本机观测。`doc-sync` 是静态工程 gate，不代表 Harness 产品运行时延迟。</p></div></div>
+      <div class="phase-results">
+        <article class="panel">
+          <div class="chart-title"><h3>`doc-sync` 冷／热基线</h3><span>墙钟时间；条形按冷运行归一化</span></div>
+          <div class="result-chart" role="img" aria-label="doc-sync 冷运行 1379.12 秒，热运行 558.37 秒；峰值 RSS 分别约 887 和 881 MiB">
+            <div class="result-chart-group"><div class="result-chart-head"><strong>冷运行</strong><span>1,379.12s · 887 MiB RSS · 35/41 gate</span></div><div class="result-track"><div class="result-bar" style="width:100%"></div></div></div>
+            <div class="result-chart-group"><div class="result-chart-head"><strong>热运行</strong><span>558.37s · 881 MiB RSS · 34/41 gate</span></div><div class="result-track"><div class="result-bar hot" style="width:40.49%"></div></div></div>
+          </div>
+          <p class="result-note">热运行墙钟比冷运行低 59.5%，峰值 RSS 基本持平。主要耗时来自 doc typecheck、documentation build、scoped events、doc graphs、persistence catalog 与 Cordis catalog。失败来自当前基线中的文档漂移、缺失的 experimental package 配置、约 2 GiB V8 heap OOM，以及一次 5 秒 spec 超时；阶段一没有把这些无关问题并入清理。</p>
+        </article>
+        <aside class="panel">
+          <h3>交付状态</h3>
+          <div class="delivery-list">
+            <div class="delivery"><div class="delivery-state">已完成</div><div><strong>Workspace API 收紧</strong><span>移除 `create(path, title?)` 的死参数、TODO、README 示例和测试消费者；默认标题统一来自 canonical path。</span></div></div>
+            <div class="delivery"><div class="delivery-state">已完成</div><div><strong>过渡 CLI 退役</strong><span>实时 open PR 清单为 0；迁移 CLI 与 package script 删除，永久 canonicalizer 和只读布局断言保留。</span></div></div>
+            <div class="delivery"><div class="delivery-state">已完成</div><div><strong>Spec 责任拆分</strong><span>`ToolRuntime` 主行为留在原文件，schema DSL、validation 与 presentation 移入独立 spec；137 个用例保持通过。</span></div></div>
+            <div class="delivery"><div class="delivery-state caution">负向结果</div><div><strong>独立执行未提速</strong><span>中位数由 2.03s 增至 3.89s（+91.6%）；保留原始样本，完整套件并行收益尚未建立。</span><div class="sample-strip"><code>前 2.41 / 2.03 / 1.95s</code><code>后 3.89 / 2.55 / 6.16s</code></div></div></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="phase-two">
+      <div class="section-head"><div><h2>阶段二执行进展</h2><p>首个试点只比较 Cordis 目录与文档关系图两个静态 verifier 的等价 workload；数据不代表完整 `doc-sync` 或 Harness 产品延迟。</p></div></div>
+      <div class="phase-results">
+        <article class="panel">
+          <div class="chart-title"><h3>共享 Typert 投影前后对照</h3><span>三次运行的墙钟中位数</span></div>
+          <div class="result-chart" role="img" aria-label="两个静态 verifier 的墙钟中位数从 55.54 秒降至 33.94 秒；峰值 RSS 中位数从 984 MiB 增至 1,016 MiB">
+            <div class="result-chart-group"><div class="result-chart-head"><strong>原两个命令顺序执行</strong><span>55.54s · 984 MiB RSS</span></div><div class="result-track"><div class="result-bar" style="width:100%"></div></div></div>
+            <div class="result-chart-group"><div class="result-chart-head"><strong>共享投影协调器</strong><span>33.94s · 1,016 MiB RSS</span></div><div class="result-track"><div class="result-bar hot" style="width:61.11%"></div></div></div>
+          </div>
+          <div class="benchmark-delta" aria-label="性能变化摘要">
+            <div class="benchmark-stat good"><span>墙钟中位数变化</span><strong>-38.9%</strong></div>
+            <div class="benchmark-stat caution"><span>峰值 RSS 中位数变化</span><strong>+3.3%</strong></div>
+          </div>
+          <p class="result-note">原实现样本：55.54 / 68.36 / 48.67s；共享实现样本：35.99 / 32.22 / 33.94s。两条路径都接受 111 个 Cordis 产物，并因同一个 `docs/event-producer-consumer.md` 漂移退出失败。</p>
+        </article>
+        <aside class="panel">
+          <h3>试点边界与结论</h3>
+          <div class="delivery-list">
+            <div class="delivery"><div class="delivery-state">已保留</div><div><strong>一次 Cordis 投影</strong><span>`doc-projections` 复用轻量目录模型，同时完成两类生成物的新鲜度检查。</span></div></div>
+            <div class="delivery"><div class="delivery-state">可诊断</div><div><strong>独立命令仍可运行</strong><span>`verify-cordis-catalog` 与 `verify-doc-graphs` 未删除，失败仍能按产物所有者单独定位。</span></div></div>
+            <div class="delivery"><div class="delivery-state caution">内存代价</div><div><strong>峰值中位数增加约 32 MiB</strong><span>重型 projector 在创建图生成器的 TypeScript 工程前释放；后续试点继续同时考察墙钟与 RSS。</span></div></div>
+            <div class="delivery"><div class="delivery-state caution">未外推</div><div><strong>完整 aggregate 尚未重测</strong><span>当前结论不覆盖其他 `doc-sync` 门禁、CI 总时长或产品运行时。</span></div></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="phase-three">
+      <div class="section-head"><div><h2>阶段三执行进展</h2><p>当前交付覆盖本地反馈回路、源码与构建产物预算，以及首批 Agent Note 语义复核；自动建议仍保留维护者判断与 CI 的完整职责。</p></div></div>
+      <div class="phase-results">
+        <article class="panel">
+          <div class="chart-title"><h3>核心包依赖影响</h3><span>runtime + peer dependency 消费方</span></div>
+          <div class="result-chart" role="img" aria-label="Session 有 99 个直接和 161 个传递消费方，LLM 有 92 个直接和 178 个传递消费方，Agent 有 75 个直接和 131 个传递消费方">
+            <div class="result-chart-group"><div class="result-chart-head"><strong>`dsh-session`</strong><span>99 direct · 161 transitive</span></div><div class="result-track"><div class="result-bar" style="width:100%"></div></div></div>
+            <div class="result-chart-group"><div class="result-chart-head"><strong>`dsh-llm`</strong><span>92 direct · 178 transitive</span></div><div class="result-track"><div class="result-bar hot" style="width:92.93%"></div></div></div>
+            <div class="result-chart-group"><div class="result-chart-head"><strong>`dsh-agent`</strong><span>75 direct · 131 transitive</span></div><div class="result-track"><div class="result-bar memory" style="width:75.76%"></div></div></div>
+          </div>
+          <p class="result-note">条形使用直接消费方数量并按 Session 归一化；transitive 数值来自同一仓库图的反向闭包。该图用于说明改动影响广度，不代表必须在本地运行所有消费方测试。</p>
+        </article>
+        <aside class="panel">
+          <h3>Affected-check v1</h3>
+          <div class="delivery-list">
+            <div class="delivery"><div class="delivery-state">显式范围</div><div><strong>不猜测 Git base</strong><span>必须传入 `--base`；报告分别纳入 committed、staged、unstaged 与 untracked 路径。</span></div></div>
+            <div class="delivery"><div class="delivery-state">可解释</div><div><strong>每条命令附带原因</strong><span>覆盖 package source、测试、Client、文档、benchmark、脚本和 manifest；支持 version 1 JSON。</span></div></div>
+            <div class="delivery"><div class="delivery-state caution">故意保守</div><div><strong>未映射路径不会被隐藏</strong><span>动态加载、配置、子进程、快照和外部 provider 仍需维护者按行为选择证据。</span></div></div>
+            <div class="delivery"><div class="delivery-state caution">不执行</div><div><strong>建议不等于门禁</strong><span>工具不运行命令、不跳过 CI，也不声称自动选择已经完整。</span></div></div>
+          </div>
+        </aside>
+      </div>
+      <article class="panel phase-followup">
+        <div class="chart-title"><h3>确定性工程预算</h3><span>当前值 / 源码上限；2026-10-04</span></div>
+        <div class="result-chart" role="img" aria-label="Cordis 目录字节预算使用 95.2%，目录行数预算使用 95.3%，doc-sync 叶子 gate 数预算使用 95.3%">
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Cordis 目录字节</strong><span>709,291 / 745,000 · 95.2%</span></div><div class="result-track"><div class="result-bar" style="width:95.21%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Cordis 目录行数</strong><span>10,336 / 10,850 · 95.3%</span></div><div class="result-track"><div class="result-bar hot" style="width:95.26%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>`doc-sync` 叶子 gate</strong><span>41 / 43 · 95.3%</span></div><div class="result-track"><div class="result-bar memory" style="width:95.35%"></div></div></div>
+        </div>
+        <p class="result-note">Client slot 目录从 172,457 bytes / 3,184 行降至 121,353 bytes / 1,860 行；三目录合计减少 51,104 bytes（-6.7%）和 1,324 行（-11.4%）。优化后预算已收紧，`verify-engineering-budgets` 继续同时进入 `doc-sync` 与 `test:docs`。</p>
+      </article>
+      <article class="panel phase-followup">
+        <div class="chart-title"><h3>构建产物 Bundle 预算</h3><span>raw bytes / 产物上限；2026-10-04</span></div>
+        <div class="result-chart" role="img" aria-label="Host Cordis bundle 为 513447 字节，预算使用 95.1%；Client runner bundle 为 249278 字节，预算使用 95.1%；合计为 762725 字节，预算使用 95.3%">
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Host Cordis entrypoint</strong><span>513,447 / 540,000 · 95.1%</span></div><div class="result-track"><div class="result-bar" style="width:95.08%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Client runner entrypoint</strong><span>249,278 / 262,000 · 95.1%</span></div><div class="result-track"><div class="result-bar hot" style="width:95.14%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>两入口合计</strong><span>762,725 / 800,000 · 95.3%</span></div><div class="result-track"><div class="result-bar memory" style="width:95.34%"></div></div></div>
+        </div>
+        <div class="benchmark-delta" aria-label="目录压缩带来的构建产物变化">
+          <div class="benchmark-stat good"><span>Client bundle</span><strong>-16.4%</strong><span>298,250 → 249,278 bytes</span></div>
+          <div class="benchmark-stat good"><span>两入口合计</span><strong>-6.0%</strong><span>811,697 → 762,725 bytes</span></div>
+        </div>
+        <p class="result-note">`verify-built-engineering-budgets` 在 CI artifact lane 的共享 build 后读取实际发布入口。Host 未改动；Client 与 aggregate 预算已按新基线收紧。这里使用 raw bytes，避免 gzip / Brotli 版本差异。</p>
+      </article>
+      <article class="panel phase-followup">
+        <div class="chart-title"><h3>Cordis 目录运行时预算</h3><span>本机五样本中位数 / 校准预算；2026-10-04</span></div>
+        <div class="result-chart" role="img" aria-label="Host 冷加载中位数 25.44 毫秒，占 75 毫秒预算的 33.9%；Host 保留 heap 最大约 4.24 MiB，占 8 MiB 预算的 53%；Host 全目录查询中位数 388.73 毫秒，占 1050 毫秒预算的 37%；Client 全目录查询中位数 5.24 毫秒，占 20 毫秒预算的 26.2%">
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Host 冷加载</strong><span>25.44 / 75 ms · 33.9%</span></div><div class="result-track"><div class="result-bar" style="width:33.92%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Host GC 后保留 heap</strong><span>约 4.24 / 8 MiB · 53.0%</span></div><div class="result-track"><div class="result-bar memory" style="width:53%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Host 完整查询 sweep</strong><span>388.73 / 1,050 ms · 37.0%</span></div><div class="result-track"><div class="result-bar hot" style="width:37.02%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>Client 完整查询 sweep</strong><span>5.24 / 20 ms · 26.2%</span></div><div class="result-track"><div class="result-bar" style="width:26.2%"></div></div></div>
+        </div>
+        <div class="benchmark-delta" aria-label="完整查询负载规模">
+          <div class="benchmark-stat good"><span>Host sweep</span><strong>158 次操作</strong><span>81 Services + 75 Events · 输出 1,040,931 bytes</span></div>
+          <div class="benchmark-stat caution"><span>Client sweep</span><strong>85 次操作</strong><span>8 Services + 4 Events + 70 Slots · 输出 224,384 bytes</span></div>
+        </div>
+        <p class="result-note">条形按各自预算归一化；完整 sweep 是目录长尾负载，不等于一次普通查询。优化后三次 Client 中位数为 5.32 / 5.24 / 5.18 ms，取其中位 5.24 ms；输出操作数和字节数与基线一致。Host 查询预算收紧至 375 ms 时，未改动负载以 390.86 ms 中位数失败。Client 数据只表示 Node 查询成本，浏览器冷加载仍待单独校准。</p>
+      </article>
+      <article class="panel phase-followup">
+        <div class="chart-title"><h3>Proposed Agent Note 首批语义复核</h3><span>当前库存与深读结论；2026-10-04</span></div>
+        <div class="result-chart" role="img" aria-label="复核前有 29 份 proposed Agent Note，首批深读 6 份，其中 1 份因被后续实现完整取代而关闭，5 份因仍有开放前提而保留">
+          <div class="result-chart-group"><div class="result-chart-head"><strong>复核前 proposed 库存</strong><span>29 份 · 100%</span></div><div class="result-track"><div class="result-bar" style="width:100%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>首批完成语义深读</strong><span>6 份 · 20.7%</span></div><div class="result-track"><div class="result-bar hot" style="width:20.69%"></div></div></div>
+          <div class="result-chart-group"><div class="result-chart-head"><strong>关闭失效提案</strong><span>1 份 · 3.4%</span></div><div class="result-track"><div class="result-bar memory" style="width:3.45%"></div></div></div>
+        </div>
+        <p class="result-note">已删除 `port-tool-owned-render` 中英文及配对记录：当前 `ui-tool` 已提供 read、read_image、bash、write/edit、grep/glob 与 web 工具视图，`client-derived-tool-presentation` 已拥有原始事件派生、单一 keyed slot 和 Generic fallback 的决策。输入改写、附件隔离、Session 活动时间、package inventory 与文档质量 5 份提案仍有未完成的验收条件，继续保持 proposed。</p>
+      </article>
+    </section>
+
+    <section>
+      <div class="section-head"><h2>明确不做的优化</h2><p>这些限制来自已发布数据、能力替换和生命周期正确性，不是保守偏好。</p></div>
+      <div class="guardrails">
+        <div class="guardrail"><strong>不因“包小”合并能力接口</strong><span>`browser-use`、`computer-use` 等小包承担独立 Service Definition；只有消费者与演进节奏证据才能推翻拆分。</span></div>
+        <div class="guardrail"><strong>不折叠双适配器为一个条件分支</strong><span>LLM/provider twins 默认视为有意设计；共享代码只有在真正删除所有权和测试成本时才成立。</span></div>
+        <div class="guardrail"><strong>不跳过 durable / wire 校验换速度</strong><span>Session 代际、配置、进程、网络和持久文件仍是必须验证的输入边界。</span></div>
+        <div class="guardrail"><strong>不改写已提交的 Session 代际</strong><span>迁移只能发布相邻的新版本 successor，旧代不可移动、覆盖或删除。</span></div>
+      </div>
+    </section>
+
+    <hr class="rule">
+
+    <section id="methodology">
+      <div class="section-head"><h2>方法、证据与限制</h2><p>本报告同时记录工程设计审计与阶段一至三的落地证据；性能结论只覆盖明确列出的本机命令。</p></div>
+      <div class="method">
+        <article class="panel"><h3>已检查</h3><ul><li>根目录与 packages 约束、架构、测试和 defensive patterns。</li><li>全仓文件/行数、package 分布、TODO、依赖入出度。</li><li>最大生产文件、最大测试文件、半年变更频率。</li><li>Session 与 Cordis 目录性能基准决策，以及首批 6 份 proposed Agent Note 的当前实现与入站链接。</li><li>热点文件的生产调用点、生成器/消费者关系，以及 Host / Client 实际构建入口。</li></ul></article>
+        <article class="panel"><h3>限制与下一步证据</h3><ul><li>这是广度优先的静态审计与代表性热点深读，不声称逐行人工阅读约 94 万行 TypeScript。</li><li>阶段一没有运行 duplication 或全量 test；built bundle 与 Cordis 运行时数据来自阶段三的独立真实构建及 benchmark。</li><li>测试拆分的 isolated 墙钟为负向结果；是否改善完整套件的并行尾部，需要同一资源下的套件级 before/after 才能判断。</li><li>行数、提交触达次数和依赖度用于排序，不单独构成重构理由。</li><li>Host 冷加载与 Host/Client 完整查询已有预算；Client 浏览器已有本机诊断采样，实际 CI 浏览器门槛仍待校准。完整 `doc-sync` 已重跑但未全绿，详见下方验证记录。</li></ul></article>
+      </div>
+      <p class="footnote">关键源文件：<a href="docs/architecture.md">docs/architecture.md</a> · <a href="scripts/run-gates.ts">scripts/run-gates.ts</a> · <a href="packages/typert/generator/src/analyzer.ts">typert analyzer</a> · <a href="packages/extensions/tool-cordis/src/api-catalog.ts">Host API catalog</a> · <a href="packages/client/ui-trajectory/src/client/TrajectoryTable.tsx">TrajectoryTable</a> · <a href="packages/workspace/workspace/src/index.ts">WorkspaceRegistry</a> · <a href=".agents/notes/implemented/process/2026-09-06-evidence-driven-performance-skill.md">performance decision</a></p>
+      <article class="panel phase-followup" id="validation-2026-10-08">
+        <div class="chart-title"><h3>重构收尾验证</h3><span>2026-10-08 · 当前工作区</span></div>
+        <ul>
+          <li>Trajectory package：198 个用例通过、3 个跳过；Host / Client 构建、Web 前端构建与导出 JSDoc 检查通过。</li>
+          <li>真实 Web keyless replay：PTC、Thinking Markdown、navigation / panes 三个文件通过，16 个用例通过、1 个跳过。保留现有 expected 输出。</li>
+          <li>Client catalog 浏览器诊断：五次新 scaffold / browser 采样通过。Chromium 149.0.7827.55；资源请求至 factory 完成中位数 205.1 ms，其中请求至注册 172.5 ms、factory 执行 1.6 ms。该组合包含 56 个 entry，不能将总耗时归因于一个 catalog；无时间通过阈值。</li>
+          <li><code>test:docs</code>：19 通过、2 失败，均为已有 session-recall 包缺失 README。<code>lint:contracts-ready</code>：该包存在两条 lint 错误，本轮未修改其源码。</li>
+          <li><code>doc-sync</code>：首跑 33 通过、8 失败。Trajectory 导出 JSDoc 缺项已修复并单独复验通过；剩余是生成图 / config catalog 漂移、session-recall 路径与 README、scoped-events 默认堆上限 OOM，以及 docs:build 子命令找不到 pnpm。未声称全仓检查通过。</li>
+          <li>新增功能设计另见 <a href="harness-feature-design.html">交互式 HTML 方案</a>：10 项提案、3 个样机；筛选、空结果、键盘切换、图表导航和 320–1920px 布局已验证。这些提案尚未作为产品功能实现。</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const details = {
+      1: {
+        title: '1. 复用静态分析索引', impact: '收益 5/5', effort: '成本 3/5', confidence: '信心 4/5',
+        items: ['`doc-sync` 现在用一个 `doc-projections` gate 运行 Cordis 目录与关系图新鲜度检查。', '协调器完成目录字符串渲染后只保留轻量模型，避免让 analyzer-backed projector 与另一个 TypeScript Program 长时间共存。', '等价 workload 墙钟中位数降低 38.9%，峰值 RSS 中位数增加 3.3%；独立 verifier 命令继续保留。'],
+        source: '验证：两套实现各三次墙钟与峰值 RSS 样本；当前同因 event-producer-consumer 文档漂移失败。'
+      },
+      2: {
+        title: '2. 压缩生成目录', impact: '收益 4/5', effort: '成本 3/5', confidence: '信心 5/5',
+        items: ['Client slot 目录按 cardinality 共享 register options，并按 scope 共享 framework props。', '三目录合计减少 51,104 bytes；Client bundle 减少 48,972 bytes，源码与 bundle 预算已按新基线收紧。', '完整 Client sweep 仍为 85 次操作和 224,384 bytes 输出，三次运行中位数的中位为 5.24 ms。'],
+        source: '验证：生成器单测与 freshness gate、Client provider 测试、built raw bytes、Host 冷加载及 Host/Client 完整 query sweep。'
+      },
+      3: {
+        title: '3. 拆分超大测试文件', impact: '收益 4/5', effort: '成本 2/5', confidence: '信心 4/5',
+        items: ['测试代码约 506k 行，多个单文件落在 2,000–6,000 行区间。', '仓库测试以 spec 文件为并发单元，超大文件会形成尾部等待。', '按 fixture 与资源所有权拆分；端口、目录、子进程和全局状态必须继续隔离。'],
+        source: '验证：同一 CI 资源下记录最长文件、总墙钟时间、失败重试与 teardown。'
+      },
+      4: {
+        title: '4. 拆分高频 UI 热点', impact: '收益 4/5', effort: '成本 3/5', confidence: '信心 5/5',
+        items: ['TrajectoryTable 已从 3,511 行降至 2,221 行，package 与 public API 保持不变。', '记录模型与 inspector 解析位于纯模块；prompt diff、工具目录、记录载荷、程序源码和 Markdown 内容由独立组件展示。', '表格保留选择、导航、thinking 展开与换行状态；拆分继续限制在原 package 内。'],
+        source: '已验证：Trajectory package 198 个用例通过、3 个跳过；Host / Client 构建；PTC、Thinking Markdown、navigation / panes 浏览器回放 16 个用例通过、1 个跳过。全仓 doc-sync / lint 尚有单独记录的阻塞。'
+      },
+      5: {
+        title: '5. 清除失效表面', impact: '收益 2/5', effort: '成本 1/5', confidence: '信心 5/5',
+        items: ['WorkspaceRegistry.create 的可选 title 已无生产调用者，源码 TODO 已确认来源。', '删除参数时同步更新 README、JSDoc、生成目录和消费者。', '临时 fixture migrator 只有在 open PR inventory 为空后才能移除。'],
+        source: '验证：精确符号搜索、workspace focused tests、doc-sync 与 git diff check。'
+      },
+      6: {
+        title: '6. 自动选择受影响检查', impact: '收益 4/5', effort: '成本 4/5', confidence: '信心 3/5',
+        items: ['`affected-check` 要求显式 base，并合并 committed 与 dirty worktree 路径。', 'Session、LLM、Agent 的直接消费方为 99、92、75，传递消费方为 161、178、131。', '输出命令、原因与未映射路径；工具不执行命令，也不替代维护者选择或 CI。'],
+        source: '验证：12 个聚焦测试、真实工作树 version 1 JSON 演练、核心包反向依赖闭包。'
+      }
+    };
+
+    const points = document.querySelectorAll('.point');
+    const title = document.getElementById('detail-title');
+    const impact = document.getElementById('detail-impact');
+    const effort = document.getElementById('detail-effort');
+    const confidence = document.getElementById('detail-confidence');
+    const list = document.getElementById('detail-list');
+    const source = document.getElementById('detail-source');
+    points.forEach((point) => point.addEventListener('click', () => {
+      const detail = details[point.dataset.id];
+      points.forEach((candidate) => candidate.setAttribute('aria-pressed', String(candidate === point)));
+      title.textContent = detail.title;
+      impact.textContent = detail.impact;
+      effort.textContent = detail.effort;
+      confidence.textContent = detail.confidence;
+      list.replaceChildren(...detail.items.map((text) => {
+        const item = document.createElement('li');
+        item.textContent = text;
+        return item;
+      }));
+      source.textContent = detail.source;
+    }));
+
+    const filters = document.querySelectorAll('.filter');
+    const opportunities = document.querySelectorAll('.opportunity');
+    filters.forEach((filter) => filter.addEventListener('click', () => {
+      const selected = filter.dataset.filter;
+      filters.forEach((candidate) => candidate.setAttribute('aria-pressed', String(candidate === filter)));
+      opportunities.forEach((item) => { item.hidden = selected !== 'all' && item.dataset.category !== selected; });
+    }));
+  </script>
+</body>
+</html>
