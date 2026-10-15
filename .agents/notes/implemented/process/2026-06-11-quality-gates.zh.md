@@ -20,11 +20,17 @@ Status: implemented
 - `packages/*/*/src` 下按文件 100% 覆盖率（v8）；不可达的防御性守卫使用 `/* v8 ignore */ ` 并注明理由，而非删除。
 - publint（包的正确性）、workspace 约束（workspace 规则：private、cordis peer+dev、统一版本、ESM），以及对构建出的包声明文件进行 NodeNext 消费方类型检查。[移除未使用代码门禁的决策](2026-08-19-remove-knip.zh.md)说明了静态死代码扫描为何不属于这套门禁。
 - lefthook pre-commit 执行不加载项目的 Oxlint 验证，并应用带[一次有界重试](../../archived/process/2026-08-09-oxlint-only-fix-workflow.md)的安全修复，拒绝已暂存的空白问题并检查 vendor manifest（元数据清单）；pre-push 运行增量类型检查。CI 在 Node 22.19/24/26 上运行完整矩阵，并对 Headless、TUI、ACP（Agent Client Protocol）、JSON-RPC、工作流和 PTC 运行时入口路径执行已构建应用的冒烟测试。
+- 确定性的工程预算限制 Cordis runtime 生成目录的总字节数、总行数以及 `doc-sync` 叶子清单。它们保护生成源码与编排复杂度，但不会把静态计数表述为 bundle 体积、启动延迟或 gate 时长；这些测量需要构建产物或经过校准的 runner。
+- CI 产物通道在共享 build 后限制已发布 Host Cordis 入口、Client runner 入口及二者合计的原始字节数。原始字节数可跨压缩器版本复现；对机器敏感的启动、时间和内存测量仍属于 benchmark 通道。
+
+本地检查选择仍由维护者决定，而不是成为另一道门禁。`affected-check` 接受显式 base，同时纳入 committed 与 dirty worktree 路径，为发生变化的 Harness package 报告 runtime 与 peer dependency 消费方，并输出带原因的命令建议。它不会执行这些命令，也不允许 CI 跳过工作；由于配置、动态加载、子进程、快照与外部 provider 关系并不都是完整的 package graph 边，未分类路径会继续显示以供手工选择。
 
 ## 后果
 
 - 约定不会因 agent 更替而失效；可低成本发现的 commit/push 缺陷会在本地触发失败，其余违规会在 CI 的完整检查中触发失败。
 - 门禁本身也是需要维护的代码；配置变更与其他变更一样需要评审。
+- advisory 报告可以减少查询依赖图的工作，但不声称测试选择完整；其有用程度与误报率可以独立于必需 CI 演进。
+- 源码预算和构建产物原始字节预算提供可复现的棘轮和可归因失败，而对机器敏感的时间与内存预算继续由隔离的 benchmark 通道负责。
 - 100% 覆盖率的压力可能催生无断言的测试——变异测试是计划中的对策（见[变异测试提案](../../proposed/testing/2026-06-11-mutation-testing.zh.md)）。
 
 <!-- agent-note-format: alternatives-not-recorded (pre-format Agent Note) -->

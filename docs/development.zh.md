@@ -128,11 +128,19 @@ vendor manifest 守卫检查 `vendor/*/src` 下的改动是否连同对应的 `v
 
 除限定范围的暂存记录校验外，这些钩子有意不运行测试、快照、文档检查、构建或 `hygiene`。贡献者只运行一次[与改动行为相关的检查](../AGENTS.md#run-relevant-checks-locally)；CI 负责全量覆盖率门禁、构建产物冒烟测试，以及 Node 22.19、24 和 26 兼容性矩阵。
 
+`pnpm run affected-check --base <verified-base-ref>` 读取与 `change-scope` 相同的显式 committed 与 worktree 范围，把变更的 `packages/*/*` 路径投影到 runtime 与 peer dependency 消费方，并输出带原因的保守命令建议。它不会执行命令、猜测 base、发现只通过动态加载或配置连接的消费方，也不替代维护者选择和 CI；不在规则覆盖范围内的路径会列出供手工选择。对非 `HEAD` commit 使用 `--head <ref>`，需要带版本的机器可读报告时使用 `--json`。
+
 贡献者可以选择运行 `pnpm run check:all`，执行全面的本地门禁集。该命令独立于 Git 钩子，也不是对 agent 的指令。
 
 ### CI 门禁
 
 keyless [CI 工作流](../.github/workflows/ci.yml) 将独立门禁分组到若干宽粒度 lane，并在受支持的 Node 版本上运行一组较小的兼容性检查。产物消费方在各自 lane 内等待一次 build。必需 benchmark 在标准 GitHub 托管 Linux 上独立运行；[benchmark 运行器决策](../.agents/notes/implemented/testing/2026-09-06-standard-hosted-benchmark-runner.zh.md)拥有路由及 job 超时。单独的真实 API 工作流按其配置的 worker 上限运行 `pnpm run test:e2e`。当前门禁和 job 清单以 [scripts/run-gates.ts](../scripts/run-gates.ts) 和工作流文件为准。
+
+`verify-engineering-budgets` 同时属于 `doc-sync` 和 `test:docs`，报告并限制三个 Cordis runtime 生成目录的精确总字节数、总行数以及 `doc-sync` 叶子 gate 数量。这些确定性上限保护生成源码与编排复杂度；它们不代表 bundle 体积、启动时间或 gate 时长，后几项需要构建产物或经过 runner 校准的测量。
+
+`verify-built-engineering-budgets` 在 CI 产物通道的 `build` 之后运行。它限制已发布 Host Cordis 入口、Client runner 入口及二者合计的原始字节数；缺少产物时会失败，不会给出不完整测量。原始字节数使结果不受压缩器版本影响。启动延迟和 gate 时长依赖 runner，仍由 benchmark 通道测量。
+
+`test:bench` 还通过构建后的生产代码测量生成的 Cordis 目录：在全新进程中导入 Host 入口并测量 GC 后保留 heap，以及包含 JSON 序列化的完整 Host 与 Client 查询 sweep。[目录运行时性能决策](../.agents/notes/implemented/testing/2026-10-04-cordis-catalog-runtime-performance.zh.md)拥有工作负载、校准与排除项。Client sweep 是 Node 查询测量；浏览器冷加载仍未校准。
 
 不带凭据的 dsh 依赖布局检查与 dsh/vendor 打包演练仅在 `DSH_CI_FAILOVER_LINUX=selfhosted`，且事件为受信任的 master 推送或同仓库、非 fork、非 Dependabot 拉取请求时使用现有 Linux 自托管池。其余情况（包括手动触发）均使用 `ubuntu-24.04`；手动发布仍使用托管运行器。持久化存储隔离与回退限制见[发布演练运行器决策](../.agents/notes/implemented/process/2026-09-06-release-rehearsal-selfhosted.zh.md)。
 

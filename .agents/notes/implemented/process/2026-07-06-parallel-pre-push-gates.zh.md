@@ -22,9 +22,13 @@ Node 24 消费方任务采用单个包含 10 道门禁的模式，而非由 shel
 
 各门禁的包脚本仍是临时本地运行所用的命令入口。`hygiene` 调用包含相同十三道检查且限制为本地四个 worker 的调度器模式，而 `doc-sync` 的成员列表由调度器管理（[通过门禁调度器运行 doc-sync](../../archived/process/2026-07-21-doc-sync-through-gate-scheduler.md)）。
 
+在 `doc-sync` 内，一个 `doc-projections` 协调器基于同一次 Typert Cordis 投影验证 Host Cordis 目录和关系图。协调器先完成目录渲染，再启动图生成器独立的 TypeScript 工程，期间只保留已经渲染的目录字符串和轻量目录模型。原有的 `verify-cordis-catalog` 与 `verify-doc-graphs` package script 继续用于聚焦诊断和修复。
+
 ## 验证
 
 [scripts/run-gates.spec.ts](../../../../scripts/run-gates.spec.ts) 在执行器运行前拒绝无效图，锁定必须通过与只等结算两种顺序，锁定 hygiene、消费方与原生 Windows 清单及其失败语义，通过真实子进程验证信号终止，并证明流式输出会立即显示且不被缓冲。[scripts/publint-all.spec.ts](../../../../scripts/publint-all.spec.ts) 在下游产物消费方运行前拒绝缺失的公开导出。
+
+对于依次运行 Cordis 目录与文档关系图新鲜度检查的等价 workload，原命令墙钟样本为 `55.54s`、`68.36s`、`48.67s`，峰值 RSS 为 `1,031,766,016`、`1,013,170,176`、`1,136,312,320` bytes。共享协调器墙钟样本为 `35.99s`、`32.22s`、`33.94s`，峰值 RSS 为 `957,366,272`、`1,065,680,896`、`1,124,417,536` bytes。墙钟中位数从 `55.54s` 变为 `33.94s`（`-38.9%`），峰值 RSS 中位数从约 `984 MiB` 变为 `1,016 MiB`（`+3.3%`）。两条路径均接受全部 111 个 Cordis 产物，并拒绝同一个过期文件 `docs/event-producer-consumer.md`；这些测量只覆盖两个 verifier 的 workload，不代表完整 `doc-sync` aggregate 或产品延迟。
 
 ## 曾考虑的替代方案
 
@@ -42,5 +46,7 @@ Node 24 消费方任务采用单个包含 10 道门禁的模式，而非由 shel
 这条验证链会让使用已验证产物的下游消费方和 lint 延后启动，直至共享产物视图经确认有效且临时暂存已清除；这些下游门禁仍可彼此重叠运行。`publint` 需要构建，却不依赖暂存的验证视图，因此它会与验证器重叠，而不会延长这条依赖链。
 
 大多数门禁仍保留确定性的输出块。少数长时间协调器用跨门禁输出顺序和缓冲日志换取即时诊断，而其最终状态仍可供聚合摘要使用。
+
+共享文档投影在不削弱任一新鲜度检查的前提下，从 aggregate workload 中移除了一次全仓 Cordis 分析。它增加了一个协调器和小幅内存代价：实测峰值 RSS 中位数增加约 `32 MiB`，因此后续共享分析候选必须同时提供墙钟与峰值内存证据，并在构建另一个 TypeScript 工程之前释放由 analyzer 支撑的状态。
 
 `publint-all.ts` 采用异步执行并缓冲命令输出，而不是实时继承 stdio。换来的是具有稳定输出顺序的包级并行，以及用于资源调节的单一环境变量。

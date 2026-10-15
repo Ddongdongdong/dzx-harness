@@ -124,11 +124,19 @@ The vendor manifest guard checks that changes under `vendor/*/src` are staged wi
 
 Apart from the scoped staged-record verification, the hooks intentionally do not run tests, snapshots, documentation checks, builds, or hygiene. Contributors run the [checks relevant to the changed behavior](../AGENTS.md#run-relevant-checks-locally) once; CI owns exhaustive coverage, built-artifact smokes, and the Node 22.19, 24, and 26 compatibility matrix.
 
+`pnpm run affected-check --base <verified-base-ref>` reads the same explicit committed and worktree scope used by `change-scope`, projects changed `packages/*/*` paths through runtime and peer dependency consumers, and prints conservative command suggestions with reasons. It does not run commands, infer the base, inspect dynamic or configuration-only consumers, or replace maintainer selection and CI; paths outside its rules are listed for manual selection. Use `--head <ref>` for a non-`HEAD` commit and `--json` for the versioned machine-readable report.
+
 Contributors can opt into the comprehensive local gate set with `pnpm run check:all`. The command is independent of the Git hooks and is not an agent instruction.
 
 ### CI gates
 
 The keyless [CI workflow](../.github/workflows/ci.yml) groups independent gates into broad lanes and runs a smaller compatibility signal across supported Node versions. Artifact consumers wait for one build within their lane. Required benchmarks run separately on standard GitHub-hosted Linux; the [benchmark runner decision](../.agents/notes/implemented/testing/2026-09-06-standard-hosted-benchmark-runner.md) owns routing and the job timeout. The separate real-API workflow runs `pnpm run test:e2e` with its configured worker bound. See [scripts/run-gates.ts](../scripts/run-gates.ts) and the workflow files for the current gate and job inventory.
+
+`verify-engineering-budgets`, included in `doc-sync` and `test:docs`, reports and limits the exact aggregate bytes and lines of the three generated Cordis runtime catalogs and the number of `doc-sync` leaf gates. These deterministic ceilings protect generated-source and orchestration complexity; they are not bundle-size, startup-time, or gate-duration claims, which require built-artifact or calibrated runner measurements.
+
+`verify-built-engineering-budgets` runs after `build` in the CI artifact lane. It limits the raw bytes of the shipped Host Cordis entrypoint, Client runner entrypoint, and their aggregate; missing artifacts fail instead of producing a partial measurement. Raw bytes keep the result independent of compressor versions. Startup latency and gate duration remain benchmark-lane measurements because they depend on the runner.
+
+`test:bench` also measures the generated Cordis catalogs through built production code: a fresh-process Host entry import with post-GC retained heap, and complete Host and Client query sweeps including JSON serialization. The [catalog runtime performance decision](../.agents/notes/implemented/testing/2026-10-04-cordis-catalog-runtime-performance.md) owns the workload, calibration, and exclusions. The Client sweep is a Node query measurement; browser cold load remains uncalibrated.
 
 The credential-free dsh dependency-layout and dsh/vendor pack rehearsals use the existing Linux self-hosted pool only when `DSH_CI_FAILOVER_LINUX=selfhosted` and the event is a trusted master push or same-repository, non-fork, non-Dependabot pull request. All other cases, including manual dispatch, use `ubuntu-24.04`; manual publication stays hosted. See the [release rehearsal runner decision](../.agents/notes/implemented/process/2026-09-06-release-rehearsal-selfhosted.md) for persistent-store isolation and fallback limits.
 

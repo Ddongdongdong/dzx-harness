@@ -9,7 +9,8 @@ const FORMAT_VERSION = 1
 const MAX_GIT_OUTPUT = 64 * 1024 * 1024
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 
-interface ChangeScopeReport {
+/** Versioned committed and worktree path inventory for one explicit comparison. */
+export interface ChangeScopeReport {
   formatVersion: typeof FORMAT_VERSION
   repositoryRoot: string
   input: {
@@ -43,7 +44,8 @@ interface GitBytesCommandResult {
   error: Error | undefined
 }
 
-interface ChangeScopeOptions {
+/** Refs used to select the committed comparison range. */
+export interface ChangeScopeOptions {
   base: string
   head: string
 }
@@ -192,7 +194,13 @@ function stripGitLineTerminator(output: string): string {
     : withoutLineFeed
 }
 
-function collectReport(options: ChangeScopeOptions, cwd: string): ChangeScopeReport {
+/**
+ * Collect one complete path inventory without mutating the repository.
+ * @param options - Explicit base and head refs for the committed range.
+ * @param cwd - Directory whose containing Git worktree is inspected.
+ * @returns Resolved refs and independent committed, staged, unstaged, and untracked paths.
+ */
+export function collectChangeScope(options: ChangeScopeOptions, cwd: string): ChangeScopeReport {
   const root = stripGitLineTerminator(
     requireGit(cwd, ['rev-parse', '--show-toplevel'], 'cannot locate a Git worktree'),
   )
@@ -232,7 +240,7 @@ function collectReport(options: ChangeScopeOptions, cwd: string): ChangeScopeRep
  */
 export function renderChangeScope(args: string[], cwd: string): string {
   const options = parseOptions(args)
-  const report = collectReport(options, cwd)
+  const report = collectChangeScope(options, cwd)
   return `${JSON.stringify(report, null, 2)}\n`
 }
 

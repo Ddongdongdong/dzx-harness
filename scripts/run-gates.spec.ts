@@ -247,6 +247,13 @@ describe('gate graph validation', () => {
     expect(quick).toEqual(full.filter(gate => gate.quick === true))
   })
 
+  it('keeps deterministic engineering budgets in both documentation aggregates', () => {
+    for (const mode of ['doc-sync', 'doc-quick'] as const) {
+      expect(withPnpmEntrypoint(() => gatesForMode(mode).find(gate => gate.id === 'engineering-budgets')))
+        .toMatchObject({ args: ['/private/pnpm.cjs', 'run', 'verify-engineering-budgets'] })
+    }
+  })
+
   it('checks the recorded npm dependency catalog in both documentation aggregates', () => {
     for (const mode of ['doc-sync', 'doc-quick'] as const) {
       expect(withPnpmEntrypoint(() => gatesForMode(mode).find(gate => gate.id === 'dependency-catalog')))
@@ -273,8 +280,8 @@ describe('gate graph validation', () => {
     const ids = withPnpmEntrypoint(() => gatesForMode('doc-sync').map(subject => subject.id))
 
     expect(ids.slice(0, 11)).toEqual([
-      'doc-typecheck', 'docs-site-build', 'doc-graphs', 'markdown-links', 'type-equivalence',
-      'cordis-catalog', 'cordis-inspect-catalog', 'workflow-guest', 'mermaid', 'scoped-events', 'translation-pairing',
+      'doc-typecheck', 'docs-site-build', 'doc-projections', 'markdown-links', 'type-equivalence',
+      'cordis-inspect-catalog', 'workflow-guest', 'mermaid', 'scoped-events', 'translation-pairing', 'markdown-wrap',
     ])
   })
 
@@ -590,6 +597,22 @@ describe('Node compatibility graph', () => {
 })
 
 describe('Node 24 lane ownership', () => {
+  it('measures built bundle budgets after the artifact lane build', () => {
+    const subject = withPnpmEntrypoint(() => gatesForMode('ci-artifacts'))
+    const budget = subject.find(item => item.id === 'built-engineering-budgets')
+    const { scripts } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      scripts: Record<string, string>
+    }
+
+    expect(budget).toMatchObject({
+      displayCommand: 'pnpm run verify-built-engineering-budgets',
+      args: ['/private/pnpm.cjs', 'run', 'verify-built-engineering-budgets'],
+      needs: ['build'],
+    })
+    expect(scripts['verify-built-engineering-budgets'])
+      .toBe('tsx scripts/verify-built-engineering-budgets.ts')
+  })
+
   it('keeps the static lane source-only', () => {
     const subject = withPnpmEntrypoint(() => gatesForMode('ci-static'))
 

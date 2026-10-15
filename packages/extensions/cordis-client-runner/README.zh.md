@@ -64,6 +64,7 @@ kind: "package-reference"
 | [`src/client/guard.ts`](src/client/guard.ts) | 已装载浏览器半收到的白名单 `ctx` façade |
 | [`src/client/inspect-registry.ts`](src/client/inspect-registry.ts) | Client Inspect Provider 与待答查询路由器 |
 | [`src/client/providers.ts`](src/client/providers.ts) | 第一方 client Inspect Provider（slots、theme、events） |
+| [`src/client/slot-catalog.ts`](src/client/slot-catalog.ts) | 生成的 slot 元数据；cardinality options 与 scope props 使用共享数组，provider 仍返回独立 JSON 值 |
 | [`src/client/timer.ts`](src/client/timer.ts) | 动态包注入的 client 定时器服务 |
 
 ### 一次 run 如何执行

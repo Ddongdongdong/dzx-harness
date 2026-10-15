@@ -1048,10 +1048,13 @@ export function walkPartitionProblems(input: WalkPartitionInput, maps: WalkParti
  * curated entry whose key/scope the projection no longer discovers, a declared
  * Context key or Events member the projection cannot see without a named walk
  * exemption, and a mapped page missing its markers are all aggregated errors.
+ * @param projection - precomputed Host projection, when a coordinator shares it with another check.
  * @returns `[repo-relative path, exact content]` for every generated artifact.
  */
-export function computeOutputs(): [string, string][] {
-  const { projector, model } = projectCordisCatalog(root, CORDIS_CATALOG_POLICY)
+export function computeOutputs(
+  projection?: ReturnType<typeof projectCordisCatalog>,
+): [string, string][] {
+  const { projector, model } = projection ?? projectCordisCatalog(root, CORDIS_CATALOG_POLICY)
   const services = [...model.services]
   const events = [...model.events]
 

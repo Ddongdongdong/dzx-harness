@@ -22,9 +22,13 @@ The Node 24 consumer job is one ten-gate mode rather than a shell-owned process 
 
 The per-gate package scripts remain the vocabulary for ad hoc local runs. `hygiene` invokes a scheduler mode containing the same thirteen checks with the local four-worker cap, while `doc-sync` owns its member list in the scheduler ([doc-sync through the gate scheduler](../../archived/process/2026-07-21-doc-sync-through-gate-scheduler.md)).
 
+Within `doc-sync`, one `doc-projections` coordinator verifies the Host Cordis catalog and relationship graphs from a single Typert Cordis projection. The coordinator finishes catalog rendering before it starts the graph generator's separate TypeScript project, retaining only rendered catalog strings and the lightweight catalog model. The original `verify-cordis-catalog` and `verify-doc-graphs` package scripts remain available for focused diagnosis and remediation.
+
 ## Verification
 
 [scripts/run-gates.spec.ts](../../../../scripts/run-gates.spec.ts) rejects invalid graphs before the executor runs, pins pass-required and settle-only ordering, pins the hygiene, consumer, and native Windows inventories and their failure semantics, exercises signal termination through a real child process, and proves that streamed output is immediate and unbuffered. [scripts/publint-all.spec.ts](../../../../scripts/publint-all.spec.ts) rejects a missing public export before downstream artifact consumers run.
+
+For the equivalent workload of running the Cordis catalog and documentation graph freshness checks sequentially, the original commands took `55.54s`, `68.36s`, and `48.67s` with peak RSS of `1,031,766,016`, `1,013,170,176`, and `1,136,312,320` bytes. The shared coordinator took `35.99s`, `32.22s`, and `33.94s` with peak RSS of `957,366,272`, `1,065,680,896`, and `1,124,417,536` bytes. Median wall time changed from `55.54s` to `33.94s` (`-38.9%`), while median peak RSS changed from about `984 MiB` to `1,016 MiB` (`+3.3%`). Both paths accepted all 111 Cordis artifacts and rejected the same stale `docs/event-producer-consumer.md`; these measurements cover only the two-verifier workload, not the complete `doc-sync` aggregate or product latency.
 
 ## Alternatives considered
 
@@ -42,5 +46,7 @@ Scheduler-backed commands take the slowest dependency chain instead of the sum o
 The consumer validation chain delays validated-artifact consumers and lint until the shared artifact view is known-good and transient staging is gone; those downstream gates can still overlap one another. `publint` needs the build but not the staged validation view, so it overlaps the validator instead of extending that chain.
 
 Most gates retain deterministic output blocks. Selected long coordinators trade cross-gate ordering and buffered logs for immediate diagnostics, while their final status remains available to the aggregate summary.
+
+The shared documentation projection removes one repository-wide Cordis analysis from the aggregate workload without weakening either freshness check. It adds one coordinator and a small memory tradeoff: the measured median peak RSS increased by about `32 MiB`, so future shared-analysis candidates require both wall-time and peak-memory evidence and must release analyzer-backed state before constructing another TypeScript project.
 
 `publint-all.ts` is asynchronous and buffers command output instead of inheriting stdio live. The payoff is package-level parallelism with stable output order and one environment variable for resource tuning.

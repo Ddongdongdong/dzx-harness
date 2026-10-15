@@ -10,7 +10,7 @@ import { dirname, relative, resolve } from 'node:path'
 import ts from 'typescript'
 import { projectCordisCatalog } from '@deepseek-ai/dsh-typert-generator'
 import { CORDIS_CATALOG_POLICY } from './gen-cordis-catalog.ts'
-import type { EventEntry, ServiceEntry } from '@deepseek-ai/dsh-typert-generator'
+import type { CordisCatalogModel, EventEntry, ServiceEntry } from '@deepseek-ai/dsh-typert-generator'
 import {
   collectPackageGraph,
   escapeMermaidLabel as escLabel,
@@ -1548,9 +1548,14 @@ function renderToolPipeline(): string {
   ].join('\n')
 }
 
-function renderDocs(): GraphDoc[] {
+/**
+ * Render every relationship document from one optional shared Cordis model.
+ * @param cordisModel - precomputed Host catalog model, when a coordinator owns the projection.
+ * @returns repository-relative documents and their exact generated content.
+ */
+export function renderDocs(cordisModel?: CordisCatalogModel): GraphDoc[] {
   const pkgs = collectPackageGraph(root, GROUP_ORDER, 'gen-doc-graphs')
-  const { model } = projectCordisCatalog(root, CORDIS_CATALOG_POLICY)
+  const model = cordisModel ?? projectCordisCatalog(root, CORDIS_CATALOG_POLICY).model
   const docs: GraphDoc[] = [
     { rel: 'docs/capability-seams.md', content: renderCapabilitySeams(pkgs, model.services) },
     ...APP_EXAMPLES.map(example => ({ rel: example.rel, content: renderAppComposition(example) })),

@@ -56,4 +56,23 @@ export default defineConfig([
     clean: true,
     tsconfig: 'tsconfig.client.json',
   },
+  {
+    ...shared,
+    entry: {
+      'catalog-load.worker': 'cordis-catalog/catalog-load.worker.ts',
+      'host-query.worker': 'cordis-catalog/host-query.worker.ts',
+    },
+    outDir: '.dsh-build/cordis-catalog',
+    clean: true,
+    tsconfig: 'tsconfig.host.json',
+  },
+  {
+    ...shared,
+    entry: {
+      'client-query.worker': 'cordis-catalog/client-query.worker.client.ts',
+    },
+    outDir: '.dsh-build/cordis-catalog',
+    clean: false,
+    tsconfig: 'tsconfig.client.json',
+  },
 ])

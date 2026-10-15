@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { collectSlotEntries, oversizedSlotReports, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
+import { collectSlotEntries, oversizedSlotReports, renderClientCatalog, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
 import type { SlotDeclaration, SlotRegistration, TypeDeclaration } from './slot-walk.ts'
 
 /** A declaration with every field the catalog needs, overridable per case. */
@@ -201,6 +201,23 @@ describe('the per-slot report budget', () => {
   it('passes a slot whose report stays within the budget', () => {
     const entries = resolveSlotEntries([declaration({ ownerType: 'DemoOwnerProps' })], [], OWNER_TYPES, new Map())
     expect(oversizedSlotReports(entries)).toEqual([])
+  })
+})
+
+describe('generated catalog representation', () => {
+  it('shares cardinality options and scope props without changing entry references', () => {
+    const entries = resolveSlotEntries(
+      [declaration({ key: 'demo.first', kind: 'list' }), declaration({ key: 'demo.second', kind: 'list' })],
+      [],
+      OWNER_TYPES,
+      new Map([['root', ['useSessions: Hook']]]),
+    )
+    const output = renderClientCatalog(entries)
+    expect(output.match(/const REGISTER_OPTIONS_LIST:/gu)).toHaveLength(1)
+    expect(output.match(/registerOptions: REGISTER_OPTIONS_LIST,/gu)).toHaveLength(2)
+    expect(output.match(/const STANDARD_PROPS_ROOT:/gu)).toHaveLength(1)
+    expect(output.match(/standardProps: STANDARD_PROPS_ROOT,/gu)).toHaveLength(2)
+    expect(output).toContain("'useSessions: Hook'")
   })
 })
 
