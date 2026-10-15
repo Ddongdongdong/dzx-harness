@@ -53,6 +53,12 @@ A fixed Overview above the ledger projects real record start/duration timing fro
 
 The view is a pure projection: Trajectory-owned Definitions assemble business records from the shared Session window — including durable cancellation-finalized prefixes, chunk-only interruption fallbacks, and interrupted Tool records — so Trajectory neither reads nor changes the Chat conversation snapshot. Its steering classifier retains only next-step Inbox IDs through persistent splice state and shares each current claimed batch across later Contexts.
 
+The ledger keeps request identity, display-group keys, request-number indexing, and section labels in the pure `trajectory-table-model.ts` module. The React table consumes those helpers without owning their data rules; the module has direct unit coverage for assistant/compaction identity separation and duplicate-group numbering.
+
+Record flattening, search boundary rebuilding, turn and assistant folding, completion state, and request error translation also live in that pure model. Inspector-specific JSON/schema parsing and prompt diff classification live in `trajectory-inspector-model.ts`; `TrajectoryPromptDiff.tsx` and `TrajectoryToolCatalog.tsx` own their corresponding presentation, with primitive labels shared through `trajectory-presentation-labels.ts`.
+
+Record payloads, schemas, program source, and Markdown content have dedicated inspector components. They consume recorded cell data and controlled callbacks; the table retains selection, navigation, thinking expansion, and wrapping choices. Ledger and inspector text share the pure record-presentation helpers.
+
 Native and nested PTC Tool results retain their raw structured error details. Failed records show the error code in the ledger and the error name and code in the inspector.
 
 A complete appended prompt without a loaded request header appears as a standalone system row; only its known text is available, with no inferred request options or tool catalog. Prepending its request history replaces that standalone presentation without duplicating the prompt. In-history system prompt changes compare against the most recent request state, including earlier prompt updates without a new request header. Each request retains the prompt and change that applied at its own position. Surface replacements, including compaction, restore the last nonempty surviving system prompt even without a new system event; an unloaded prompt remains unavailable until its page arrives.

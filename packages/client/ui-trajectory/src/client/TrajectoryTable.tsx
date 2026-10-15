@@ -1,33 +1,24 @@
 /** Turn-aware trajectory event ledger with a local record inspector. */
 
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
-  CodeBlock,
-  FileTypeIcon,
-  fileExtension,
-  fileSizeText,
-  IconCheckOutline16,
   IconChevronRightOutline14,
   IconCodeOutline16,
-  IconWrapLinesOutline16,
-  IconCopyOutline16,
   IconSettingsOutline16,
   IconSparkle16,
   IconUserOutline16,
   JsonTree,
   MarkdownText,
   Tooltip,
-  writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { JsonTreeLabels, JsonTreeProps, MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
-import { structuredPatch } from 'diff'
+import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  AssistantRequestConfig, ConversationPromptSnapshot, RenderMessageImages,
+  AssistantRequestConfig, RenderMessageImages,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  AssistantMetricDetail, TrajectoryCellKind, TrajectoryCellProps, TrajectorySourceBlock,
+  AssistantMetricDetail, TrajectoryCellKind, TrajectoryCellProps,
 } from './trajectory-record.ts'
 import { formatElapsedSeconds, trajectoryRecordId } from './trajectory-record.ts'
 import {
@@ -35,11 +26,30 @@ import {
 } from './trajectory-virtual-rows.ts'
 import type { TrajectoryVirtualRow } from './trajectory-virtual-rows.ts'
 import type { TrajectoryTurnModel } from './layout.ts'
-import { trajectoryPreviewText } from './trajectory-preview.ts'
 import type { TrajectoryKey, TrajectoryTranslate } from './locales.ts'
-import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
-import { codeProgram, PTC_TOOL_NAME, type CodeProgram } from './code-program.ts'
+import { codeProgram } from './code-program.ts'
+import {
+  isToolCallOnly, recordDisplayText, recordResultText, toolCallTextParts,
+} from './trajectory-record-presentation.ts'
+import type { ToolCallTextParts } from './trajectory-record-presentation.ts'
+import {
+  assistantToolCalls, collapseAssistantRecords, collapseTurnRecords, filterRecords,
+  flattenRecords, indexRequestBoundaries, indexRequestBoundaryRuns, indexRequestNumbers,
+  requestErrorMessage, requestIdentity, requestKey, sectionLabel, stateOf, statusLabel,
+} from './trajectory-table-model.ts'
+import type { RecordState, TableRecord, TrajectoryRequestNumber, TrajectoryUsage } from './trajectory-table-model.ts'
+import { jsonTreeLabels, markdownLabels } from './trajectory-presentation-labels.ts'
+import { SystemPromptDiff } from './TrajectoryPromptDiff.tsx'
+import { TrajectoryInspectorSection } from './TrajectoryInspectorSection.tsx'
+import { TrajectoryMarkdownContent } from './TrajectoryMarkdownContent.tsx'
+import { TrajectoryProgramInput, TrajectoryProgramOutput } from './TrajectoryProgramInspector.tsx'
+import {
+  TrajectoryMessageSource, TrajectoryRecordPayload, TrajectoryRecordSchema,
+} from './TrajectoryRecordData.tsx'
+import { TrajectoryToolCatalog } from './TrajectoryToolCatalog.tsx'
 import css from './TrajectoryTable.module.css'
+
+export type { TrajectoryRequestNumber, TrajectoryUsage } from './trajectory-table-model.ts'
 
 const BOTTOM_FOLLOW_THRESHOLD_PX = 2
 const OLDER_LOAD_THRESHOLD_PX = 48
@@ -129,18 +139,6 @@ const KIND_ICON: Record<TrajectoryCellKind, ReactNode> = {
   subtool: <ToolWrenchIcon />,
 }
 
-interface TableRecord {
-  turn: number | null
-  section: number
-  group: string
-  groupStart: boolean
-  turnStart: boolean
-  cell: TrajectoryCellProps
-  turnEnd: boolean
-  collapsedSummary?: string
-  collapsedSummaryKind?: 'turn' | 'assistant'
-}
-
 interface VirtualRowStructure {
   height: number
   key: string
@@ -179,8 +177,6 @@ type DetailTab =
   | 'usage'
   | 'timing'
   | 'diff'
-type RecordState = 'complete' | 'running' | 'error'
-
 interface DetailTabItem {
   id: DetailTab
   labelKey: TrajectoryKey
@@ -189,12 +185,6 @@ interface DetailTabItem {
 interface ParentRecords {
   message?: TableRecord
   tool?: TableRecord
-}
-
-interface ToolCallTextParts {
-  program: boolean
-  name: string
-  args?: string
 }
 
 interface SelectedRequest {
@@ -232,28 +222,6 @@ const REQUEST_TABS: readonly DetailTabItem[] = [
   { id: 'usage', labelKey: 'tab.usage' },
   { id: 'timing', labelKey: 'tab.timing' },
 ]
-
-function jsonTreeLabels(t: TrajectoryTranslate): JsonTreeLabels {
-  return {
-    copyValue: t('copy.value'),
-    copyJson: t('copy.json'),
-    copyPath: t('copy.path'),
-    copyPrettyJson: t('copy.prettyJson'),
-    copyCompactJson: t('copy.compactJson'),
-    copied: t('copied'),
-    copyFailed: t('copy.failed'),
-    collapseNode: t('collapse'),
-    expandNode: t('expand'),
-    copyButtonTitle: action => t('copy.optionsHint', { action }),
-  }
-}
-
-function markdownLabels(t: TrajectoryTranslate): MarkdownLabels {
-  return {
-    code: { copyLabel: t('copy'), copiedLabel: t('copied') },
-    footnotes: t('markdown.footnotes'),
-  }
-}
 
 type TrajectorySplitStyle = CSSProperties & {
   '--trajectory-tool-request-width': string
@@ -436,317 +404,6 @@ export interface TrajectoryTableProps {
   onInspectApplied?: (() => void) | undefined
 }
 
-/** Request-inspector fields shared by ordinary generation and compaction. */
-interface TrajectoryRequestNumberBase {
-  group: string
-  number: number
-  status?: 'complete' | 'running' | 'error'
-  startedAt?: number
-  completedAt?: number | null
-  error?: string
-  errorCode?: string
-  retry?: number
-  maxRetries?: number
-  retryDelayMs?: number
-  resultSeq?: number
-  provider?: string
-  model?: string
-  requestConfig?: AssistantRequestConfig
-  usage?: TrajectoryUsage
-  cumulativeUsage?: TrajectoryUsage
-}
-
-/** One purpose-discriminated request identity paired with its session-global number. */
-export type TrajectoryRequestNumber = TrajectoryRequestNumberBase & (
-  | {
-    purpose?: 'assistant'
-    /** Request anchor event sequence; absent for the currently streaming request. */
-    seq?: number
-    turn: number
-    step: number
-  }
-  | {
-    purpose: 'compaction'
-    /** Request anchor event sequence and stable compaction identity. */
-    seq: number
-    turn: number | null
-    step: 0
-  }
-)
-
-/** Disjoint provider token buckets for one request or a session prefix. */
-export interface TrajectoryUsage {
-  input?: number
-  cacheRead?: number
-  cacheWrite?: number
-  output?: number
-  reasoning?: number
-}
-
-function flattenRecords(turns: readonly TrajectoryTurnModel[]): TableRecord[] {
-  return turns.flatMap((turn, section) => {
-    let firstInSection = true
-    const records = turn.groups.flatMap((group) => {
-      return group.cells.map((cell, index) => {
-        const turnStart = firstInSection
-          && cell.requestOnly !== true
-          && cell.kind !== 'system'
-          && (cell.kind !== 'compacted' || turn.turn === null)
-        if (turnStart) firstInSection = false
-        return {
-          turn: turn.turn,
-          section,
-          group: group.title,
-          groupStart: index === 0,
-          turnStart,
-          cell,
-          turnEnd: false,
-        }
-      })
-    })
-    const last = records.at(-1)
-    if (last !== undefined) last.turnEnd = true
-    return records
-  })
-}
-
-function filterRecords(
-  records: readonly TableRecord[],
-  matches: ReadonlySet<number>,
-): TableRecord[] {
-  const filtered = records
-    .filter(record =>
-      record.cell.requestOnly !== true && matches.has(record.cell.index),
-    )
-    .map(record => ({ ...record, groupStart: false, turnStart: false, turnEnd: false }))
-  const startedSections = new Set<number>()
-  for (const [index, record] of filtered.entries()) {
-    const previous = filtered[index - 1]
-    const next = filtered[index + 1]
-    record.groupStart = previous === undefined
-      || previous.section !== record.section
-      || previous.group !== record.group
-    record.turnStart = !startedSections.has(record.section)
-      && record.cell.kind !== 'system'
-      && (record.cell.kind !== 'compacted' || record.turn === null)
-    if (record.turnStart) startedSections.add(record.section)
-    record.turnEnd = next === undefined || next.section !== record.section
-  }
-  return filtered
-}
-
-function requestKey(turn: number | null, group: string): string {
-  return `${turn}\u0000${group}`
-}
-
-function requestIdentity(request: TrajectoryRequestNumber): string {
-  return request.purpose === 'compaction'
-    ? `compaction\u0000${request.seq}`
-    : `assistant\u0000${request.turn}\u0000${request.step}`
-}
-
-function indexRequestBoundaries(
-  records: readonly TableRecord[],
-  requestGroups: ReadonlySet<string>,
-): ReadonlyMap<string, number> {
-  const boundaries = new Map<string, number>()
-  for (const record of records) {
-    const key = requestKey(record.turn, record.group)
-    if (!requestGroups.has(key)) continue
-    if (boundaries.has(key)) continue
-    if (record.cell.kind === 'user' || record.cell.kind === 'context') continue
-    boundaries.set(key, record.cell.index)
-  }
-  return boundaries
-}
-
-function sectionLabel(turn: number | null, t: TrajectoryTranslate): string {
-  return turn === null ? t('section.betweenTurns') : t('turn.label', { turn })
-}
-
-function indexRequestNumbers(
-  sessionNumbers: readonly TrajectoryRequestNumber[] | undefined,
-): ReadonlyMap<string, number> {
-  const numbers = new Map<string, number>()
-  for (const request of sessionNumbers ?? []) {
-    numbers.set(requestKey(request.turn, request.group), request.number)
-  }
-  return numbers
-}
-
-function indexRequestBoundaryRuns(
-  records: readonly TableRecord[],
-  requestGroups: ReadonlySet<string>,
-): ReadonlyMap<number, number> {
-  const indexes = new Map<number, number>()
-  let runLength = 0
-  for (const record of records) {
-    if (record.cell.requestOnly === true) {
-      indexes.set(record.cell.index, runLength++)
-      continue
-    }
-    if (
-      runLength > 0
-      && record.groupStart
-      && requestGroups.has(requestKey(record.turn, record.group))
-    ) {
-      indexes.set(record.cell.index, runLength)
-    }
-    runLength = 0
-  }
-  return indexes
-}
-
-function summarizeTurn(
-  records: readonly TableRecord[],
-  requestGroups: ReadonlySet<string>,
-  t: TrajectoryTranslate,
-): string {
-  const steps = new Set(
-    records
-      .map(record => requestKey(record.turn, record.group))
-      .filter(key => requestGroups.has(key)),
-  ).size
-  const toolCalls = records.filter(record =>
-    record.cell.kind === 'tool' || record.cell.kind === 'subtool',
-  ).length
-  return [
-    t(steps === 1 ? 'summary.steps.one' : 'summary.steps.other', { count: steps }),
-    t(toolCalls === 1 ? 'summary.toolCalls.one' : 'summary.toolCalls.other', {
-      count: toolCalls,
-    }),
-  ].join(' · ')
-}
-
-function collapseTurnRecords(
-  records: readonly TableRecord[],
-  collapsedTurns: ReadonlySet<number>,
-  requestGroups: ReadonlySet<string>,
-  t: TrajectoryTranslate,
-): TableRecord[] {
-  const recordsByTurn = new Map<number, TableRecord[]>()
-  for (const record of records) {
-    if (record.turn === null) continue
-    const turnRecords = recordsByTurn.get(record.turn) ?? []
-    turnRecords.push(record)
-    recordsByTurn.set(record.turn, turnRecords)
-  }
-  return records.flatMap((record) => {
-    if (record.turn === null || !collapsedTurns.has(record.turn)) return [record]
-    const turnRecords = recordsByTurn.get(record.turn) ?? [record]
-    if (record.cell.requestOnly === true || record.cell.kind === 'system') return [record]
-    const contentRecords = turnRecords.filter(candidate =>
-      candidate.cell.requestOnly !== true && candidate.cell.kind !== 'system')
-    if (contentRecords.length <= 1) return [record]
-    if (record.cell.index !== contentRecords[0]?.cell.index) return []
-    return [
-      { ...record, turnEnd: false },
-      {
-        ...record,
-        groupStart: false,
-        turnStart: false,
-        turnEnd: true,
-        collapsedSummary: summarizeTurn(contentRecords.slice(1), requestGroups, t),
-        collapsedSummaryKind: 'turn',
-      },
-    ]
-  })
-}
-
-function assistantToolCalls(
-  records: readonly TableRecord[],
-  assistantIndex: number,
-): readonly TableRecord[] {
-  const at = records.findIndex(record => record.cell.index === assistantIndex)
-  if (at === -1 || records[at]?.cell.kind !== 'message') return []
-  const calls: TableRecord[] = []
-  for (let i = at + 1; i < records.length; i++) {
-    const record = records[i]
-    if (record === undefined) break
-    if (record.cell.kind !== 'tool' && record.cell.kind !== 'subtool') break
-    calls.push(record)
-  }
-  return calls
-}
-
-function summarizeAssistantTools(
-  records: readonly TableRecord[],
-  t: TrajectoryTranslate,
-): string {
-  const names = [...new Set(records.map((record) => {
-    const separator = record.cell.text.indexOf(' · ')
-    return separator === -1 ? record.cell.text : record.cell.text.slice(0, separator)
-  }).filter(name => name !== ''))]
-  const count = records.length
-  const summary = t(count === 1 ? 'summary.toolCalls.one' : 'summary.toolCalls.other', { count })
-  return names.length > 0 ? `${summary} · ${names.join(', ')}` : summary
-}
-
-function collapseAssistantRecords(
-  records: readonly TableRecord[],
-  collapsedAssistants: ReadonlySet<string>,
-  t: TrajectoryTranslate,
-): TableRecord[] {
-  const out: TableRecord[] = []
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i]
-    if (record === undefined) continue
-    out.push(record)
-    if (
-      record.cell.kind !== 'message'
-      || !collapsedAssistants.has(trajectoryRecordId(record.cell))
-    ) continue
-    const calls: TableRecord[] = []
-    for (let j = i + 1; j < records.length; j++) {
-      const candidate = records[j]
-      if (
-        candidate === undefined
-        || candidate.collapsedSummary !== undefined
-        || (candidate.cell.kind !== 'tool' && candidate.cell.kind !== 'subtool')
-      ) break
-      calls.push(candidate)
-    }
-    if (calls.length === 0) continue
-    const last = calls.at(-1)
-    out[out.length - 1] = { ...record, turnEnd: false }
-    out.push({
-      ...record,
-      groupStart: false,
-      turnStart: false,
-      turnEnd: last?.turnEnd ?? false,
-      collapsedSummary: summarizeAssistantTools(calls, t),
-      collapsedSummaryKind: 'assistant',
-    })
-    i += calls.length
-  }
-  return out
-}
-
-function stateOf(record: TableRecord): RecordState {
-  if (record.cell.isError) return 'error'
-  if (record.cell.kind === 'compacted' && record.cell.timeSeconds === null) return 'running'
-  if (
-    (record.cell.kind === 'tool' || record.cell.kind === 'subtool')
-    && record.cell.outputDetail === undefined
-  ) return 'running'
-  return 'complete'
-}
-
-function statusLabel(state: RecordState, t: TrajectoryTranslate): string {
-  if (state === 'error') return t('status.failed')
-  if (state === 'running') return t('status.pending')
-  return t('status.completed')
-}
-
-function requestErrorMessage(
-  request: Pick<TrajectoryRequestNumber, 'error' | 'errorCode'>,
-  t: TrajectoryTranslate,
-): string | undefined {
-  if (request.errorCode === 'AUTH') return t('details.failure.auth')
-  if (request.error === COMPACTION_INTERRUPTED_ERROR) return t('layout.compactionInterrupted')
-  return request.error
-}
-
 function TokenRows({ cell, t }: { cell: TrajectoryCellProps; t: TrajectoryTranslate }) {
   const content = cell.output !== undefined && cell.think !== undefined
     ? Math.max(0, cell.output - cell.think)
@@ -902,28 +559,6 @@ function messageSourceLabel(source: unknown, t: TrajectoryTranslate): string {
   return `${kind[0]?.toUpperCase() ?? ''}${kind.slice(1)}`
 }
 
-function MessageSource({ record, stringWrapping, t }: {
-  record: TableRecord
-  stringWrapping: JsonTreeProps['stringWrapping']
-  t: TrajectoryTranslate
-}) {
-  const source = record.cell.messageSource
-  if (source === undefined) return <p className={css.noPayload}>{t('source.notRecorded')}</p>
-  const data = typeof source === 'object' && source !== null
-    ? source
-    : { value: source }
-  return (
-    <JsonTree
-      data={data}
-      stringWrapping={stringWrapping}
-      collapsedStringLines={12}
-      label={t('source.messageJson')}
-      labels={jsonTreeLabels(t)}
-      className={css.jsonPayload}
-    />
-  )
-}
-
 function isMarkdownRecord(record: TableRecord): boolean {
   return record.cell.kind === 'user'
     || record.cell.kind === 'context'
@@ -964,16 +599,6 @@ function parentRecords(
   return { ...(message === undefined ? {} : { message }), ...(tool === undefined ? {} : { tool }) }
 }
 
-function markdownSource(record: TableRecord): string | undefined {
-  if (record.cell.kind === 'user' || record.cell.kind === 'context') {
-    return record.cell.inputDetail
-  }
-  if (record.cell.kind === 'message' || record.cell.kind === 'compacted') {
-    return record.cell.outputDetail
-  }
-  return undefined
-}
-
 function detailTabs(record: TableRecord): readonly DetailTabItem[] {
   if (record.cell.kind === 'system') {
     if (record.cell.promptDetail === undefined && record.cell.systemPromptDetail !== undefined) {
@@ -1009,52 +634,6 @@ function detailTabs(record: TableRecord): readonly DetailTabItem[] {
     { id: 'schema', labelKey: 'tab.schema' },
     { id: 'timing', labelKey: 'tab.timing' },
   ]
-}
-
-function recordDisplayText(cell: TrajectoryCellProps, t: TrajectoryTranslate): string {
-  if (isToolCallOnly(cell, t)) return ''
-  const program = codeProgram(cell)
-  if (program !== undefined) return `${PTC_TOOL_NAME} · ${program.description.replace(/\s+/g, ' ')}`
-  if (cell.previewMarkdown !== undefined) {
-    const preview = trajectoryPreviewText(cell.previewMarkdown)
-    if (cell.text === '') return preview
-    return preview === '' ? cell.text : `${cell.text} · ${preview}`
-  }
-  if (cell.text !== '') return cell.text
-  const markdown = cell.kind === 'user' || cell.kind === 'context'
-    ? cell.inputDetail
-    : cell.kind === 'message'
-      ? cell.outputDetail ?? cell.thinkingDetail
-      : undefined
-  return markdown === undefined ? '' : trajectoryPreviewText(markdown)
-}
-
-function recordResultText(cell: TrajectoryCellProps): string | undefined {
-  return cell.resultPreviewMarkdown === undefined
-    ? cell.result
-    : trajectoryPreviewText(cell.resultPreviewMarkdown)
-}
-
-function toolCallTextParts(
-  cell: TrajectoryCellProps,
-  text: string,
-): ToolCallTextParts | undefined {
-  if (cell.kind !== 'tool' && cell.kind !== 'subtool') return undefined
-  const program = cell.toolName === PTC_TOOL_NAME
-  const separator = text.indexOf(' · ')
-  if (separator === -1) return { name: text, program }
-  return {
-    program,
-    name: text.slice(0, separator),
-    args: text.slice(separator + 3),
-  }
-}
-
-function isToolCallOnly(cell: TrajectoryCellProps, t: TrajectoryTranslate): boolean {
-  return cell.kind === 'message'
-    && !cell.outputDetail
-    && !cell.thinkingDetail
-    && cell.text === t('layout.toolCallOnly')
 }
 
 interface RecordPresentationValue {
@@ -1128,506 +707,6 @@ function RecordListText({
   )
 }
 
-function MarkdownFragment({
-  text,
-  rendered,
-  preview,
-  variant = 'body',
-  t,
-}: {
-  text: string
-  rendered: boolean
-  preview: boolean
-  variant?: 'body' | 'compact'
-  t: TrajectoryTranslate
-}) {
-  const labels = useMemo(() => markdownLabels(t), [t])
-  if (rendered) {
-    return (
-      <div className={preview ? css.markdownPreview : css.markdownPayload}>
-        <MarkdownText text={text} labels={labels} variant={variant} />
-      </div>
-    )
-  }
-  return (
-    <pre className={`${css.payload} ${preview ? css.payloadPreview : ''}`}>
-      {text}
-    </pre>
-  )
-}
-
-function SourceBlocks({
-  blocks,
-  onOpenCall,
-  t,
-}: {
-  blocks: readonly TrajectorySourceBlock[]
-  onOpenCall: (callId: string) => void
-  t: TrajectoryTranslate
-}) {
-  const attachments = new Map(recordAttachments(blocks, t).map(entry => [entry.index, entry]))
-  return (
-    <div className={css.sourceBlocks}>
-      {blocks.map((block, index) => {
-        const attachment = attachments.get(index)
-        return attachment !== undefined ? (
-          <details className={css.attachmentDisclosure} key={index}>
-            <summary>
-              <span className={css.sourceBlockLabel}>
-                {t('block.label', { index: index + 1, type: block.type })}
-              </span>
-              <span className={css.attachmentName} title={attachment.name}>
-                {attachment.name}
-              </span>
-            </summary>
-            <pre className={css.sourceBlockContent}>{block.content}</pre>
-          </details>
-        )
-          : (
-            <section className={css.sourceBlock} key={index}>
-              {block.callId !== undefined
-                ? (
-                  <button
-                    type="button"
-                    className={css.sourceBlockJumpTarget}
-                    aria-label={t('block.openSummary', { index: index + 1 })}
-                    title={t('block.openSummaryTitle')}
-                    onClick={() => {
-                      if (block.callId !== undefined) onOpenCall(block.callId)
-                    }}
-                  >
-                    <span className={css.sourceBlockLabel}>
-                      {t('block.label', { index: index + 1, type: block.type })}
-                    </span>
-                    <IconChevronRightOutline14 className={css.sourceBlockJumpIcon} size={12} />
-                  </button>
-                )
-                : (
-                  <div className={css.sourceBlockHeader}>
-                    <span className={css.sourceBlockLabel}>
-                      {t('block.label', { index: index + 1, type: block.type })}
-                    </span>
-                  </div>
-                )}
-              <pre className={css.sourceBlockContent}>{block.content}</pre>
-            </section>
-          )
-      })}
-    </div>
-  )
-}
-
-function recordAttachments(
-  blocks: readonly TrajectorySourceBlock[] | undefined,
-  t: TrajectoryTranslate,
-) {
-  let imageIndex = 0
-  return (blocks ?? []).flatMap((block, index) => {
-    const ref = block.attachment ?? block.file
-    if (ref === undefined) return []
-    if (block.attachment !== undefined) imageIndex += 1
-    return [{
-      block,
-      index,
-      name: ref.name ?? t('attachment.imageName', { index: imageIndex }),
-      metadata: [
-        block.attachment?.mediaType ?? fileExtension(ref.name ?? '').toUpperCase(),
-        fileSizeText(ref.bytes),
-        ...(block.attachment === undefined ? [] : [`${block.attachment.width} × ${block.attachment.height}`]),
-      ].filter(Boolean).join(' · '),
-    }]
-  })
-}
-
-function RecordAttachments({
-  blocks,
-  preview,
-  renderImages,
-  t,
-}: {
-  blocks: readonly TrajectorySourceBlock[] | undefined
-  preview: boolean
-  renderImages: RenderMessageImages
-  t: TrajectoryTranslate
-}) {
-  const attachments = recordAttachments(blocks, t)
-  if (attachments.length === 0) return null
-  return (
-    <ul
-      className={preview ? `${css.attachments} ${css.attachmentsPreview}` : css.attachments}
-      aria-label={t('attachment.list')}
-    >
-      {attachments.map(({ block, index, name, metadata }) => (
-        <li className={css.attachmentRow} key={index}>
-          {block.attachment !== undefined
-            ? renderImages({
-              images: [{ attachment: block.attachment, label: name }],
-              align: 'start',
-              thumbnail: true,
-            })
-            : <span className={css.attachmentIcon}><FileTypeIcon path={name} /></span>}
-          <div className={css.attachmentInfo}>
-            <span className={css.attachmentName} title={name}>{name}</span>
-            <span className={css.attachmentMetadata}>{metadata}</span>
-          </div>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function AssistantToolCalls({
-  blocks,
-  preview,
-  onOpenCall,
-  t,
-}: {
-  blocks: readonly TrajectorySourceBlock[] | undefined
-  preview: boolean
-  onOpenCall: (callId: string) => void
-  t: TrajectoryTranslate
-}) {
-  const calls = blocks?.filter(block => block.type === 'tool-call') ?? []
-  if (calls.length === 0) return null
-  return (
-    <ul className={preview
-      ? `${css.assistantToolCalls} ${css.assistantToolCallsPreview}`
-      : css.assistantToolCalls}
-    >
-      {calls.map((call, index) => (
-        <li key={call.callId ?? index}>
-          <button
-            type="button"
-            className={css.assistantToolCallButton}
-            title={t('block.openSummaryTitle')}
-            onClick={() => {
-              if (call.callId !== undefined) onOpenCall(call.callId)
-            }}
-          >
-            <svg
-              className={css.assistantToolCallIcon}
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className={css.assistantToolCallText}>
-              <span className={css.assistantToolCallName}>
-                {call.toolName ?? t('details.toolCall')}
-              </span>
-              {call.content !== '' && (
-                <span className={css.assistantToolCallArgs}>{call.content}</span>
-              )}
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function ToolGlyph() {
-  return (
-    <svg
-      className={css.toolCatalogIcon}
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function ToolCatalog({
-  tools,
-  stringWrapping,
-  t,
-}: {
-  tools: ConversationPromptSnapshot['tools']
-  stringWrapping: JsonTreeProps['stringWrapping']
-  t: TrajectoryTranslate
-}) {
-  if (tools.length === 0) return <p className={css.noPayload}>{t('record.toolsMissing')}</p>
-  return (
-    <div className={css.toolCatalog}>
-      {tools.map((tool, index) => (
-        <details className={css.toolCatalogItem} key={`${tool.name}:${index}`}>
-          <summary className={css.toolCatalogSummary}>
-            <IconChevronRightOutline14 className={css.toolCatalogChevron} size={12} />
-            <ToolGlyph />
-            <span className={css.toolCatalogName}>{tool.name}</span>
-            <span className={css.toolCatalogDescription}>{tool.description}</span>
-          </summary>
-          <div className={css.toolCatalogDefinition}>
-            {tool.description !== '' && (
-              <p className={css.toolCatalogFullDescription}>{tool.description}</p>
-            )}
-            <JsonTree
-              data={tool.parameters}
-              stringWrapping={stringWrapping}
-              label={t('record.namedParametersJson', { name: tool.name })}
-              labels={jsonTreeLabels(t)}
-              className={css.toolCatalogTree}
-            />
-          </div>
-        </details>
-      ))}
-    </div>
-  )
-}
-
-interface PromptDiffLine {
-  kind: 'meta' | 'context' | 'added' | 'removed'
-  text: string
-}
-
-function promptDiffLines(before: string, after: string): readonly PromptDiffLine[] {
-  const patch = structuredPatch('', '', before, after, undefined, undefined, { context: 3 })
-  return patch.hunks.flatMap((hunk, hunkIndex) => [
-    ...(hunkIndex === 0 ? [] : [{ kind: 'meta' as const, text: '' }]),
-    {
-      kind: 'meta' as const,
-      text: `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`,
-    },
-    ...hunk.lines.flatMap((line): PromptDiffLine[] => {
-      if (line.startsWith('\\')) return []
-      if (line.startsWith('+')) return [{ kind: 'added', text: line }]
-      if (line.startsWith('-')) return [{ kind: 'removed', text: line }]
-      return [{ kind: 'context', text: line }]
-    }),
-  ])
-}
-
-function PromptDiffSection({
-  title,
-  before,
-  after,
-}: {
-  title: string
-  before: string
-  after: string
-}) {
-  const lines = promptDiffLines(before, after)
-  if (lines.length === 0) return null
-  return (
-    <section className={css.promptDiffSection}>
-      <h3 className={css.promptDiffTitle}>{title}</h3>
-      <pre className={css.promptDiff}>
-        {lines.map((line, index) => (
-          <span className={css[`promptDiffLine${line.kind}`]} key={index}>
-            {line.text || ' '}
-            {'\n'}
-          </span>
-        ))}
-      </pre>
-    </section>
-  )
-}
-
-function SystemPromptDiff({
-  before,
-  after,
-  t,
-}: {
-  before: ConversationPromptSnapshot
-  after: ConversationPromptSnapshot
-  t: TrajectoryTranslate
-}) {
-  const toolsBefore = JSON.stringify(before.tools, null, 2)
-  const toolsAfter = JSON.stringify(after.tools, null, 2)
-  return (
-    <div className={css.promptDiffSections}>
-      {before.system !== after.system && (
-        <PromptDiffSection
-          title={t('record.systemPrompt')}
-          before={before.system}
-          after={after.system}
-        />
-      )}
-      {toolsBefore !== toolsAfter && (
-        <PromptDiffSection
-          title={t('record.tools')}
-          before={toolsBefore}
-          after={toolsAfter}
-        />
-      )}
-    </div>
-  )
-}
-
-function ToolOutputBlocks({
-  blocks,
-  error,
-  errorDetail,
-  preview,
-  renderImages,
-}: {
-  blocks: readonly TrajectorySourceBlock[]
-  error: boolean
-  /** Failure name and code preserved beside image-only error content. */
-  errorDetail?: string | undefined
-  preview: boolean
-  renderImages: RenderMessageImages
-}) {
-  return (
-    <div className={[
-      css.resultBlocks,
-      preview ? css.resultBlocksPreview : undefined,
-      error ? css.errorPayload : undefined,
-    ].filter((value): value is string => value !== undefined).join(' ')}
-    >
-      {error && errorDetail !== undefined && errorDetail !== ''
-        && <pre className={css.resultBlockText}>{errorDetail}</pre>}
-      {blocks.map((block, index) => (
-        block.attachment !== undefined
-          ? (
-            <div className={css.messageImages} key={index}>
-              {renderImages({ images: [{ attachment: block.attachment }], align: 'start' })}
-            </div>
-          )
-          : block.content !== ''
-            ? <pre className={css.resultBlockText} key={index}>{block.content}</pre>
-            : null
-      ))}
-    </div>
-  )
-}
-
-function MarkdownRecordContent({
-  record,
-  rendered,
-  preview = false,
-  thinkingExpanded,
-  onThinkingExpandedChange,
-  onOpenCall,
-  renderImages,
-  t,
-}: {
-  record: TableRecord
-  rendered: boolean
-  preview?: boolean
-  thinkingExpanded: boolean
-  onThinkingExpandedChange: (expanded: boolean) => void
-  onOpenCall: (callId: string) => void
-  renderImages: RenderMessageImages
-  t: TrajectoryTranslate
-}) {
-  if (!rendered && record.cell.sourceBlocks && record.cell.sourceBlocks.length > 0) {
-    return (
-      <SourceBlocks
-        blocks={record.cell.sourceBlocks}
-        onOpenCall={onOpenCall}
-        t={t}
-      />
-    )
-  }
-  if (record.cell.thinkingDetail) {
-    if (!rendered) {
-      const source = [
-        record.cell.thinkingDetail,
-        record.cell.outputDetail,
-      ].filter((value): value is string => value !== undefined && value !== '').join('\n\n')
-      return <MarkdownFragment text={source} rendered={false} preview={preview} t={t} />
-    }
-    return (
-      <div className={`${css.assistantContent} ${css.assistantContentRendered}`}>
-        <div className={
-          preview && !record.cell.outputDetail
-            ? `${css.thinkingQuote} ${css.thinkingQuoteOnlyPreview}`
-            : css.thinkingQuote
-        }
-        >
-          <button
-            type="button"
-            className={css.thinkingToggle}
-            aria-expanded={thinkingExpanded}
-            onClick={() => { onThinkingExpandedChange(!thinkingExpanded) }}
-          >
-            {t('record.thinking')}
-            <IconChevronRightOutline14 className={css.thinkingChevron} size={12} />
-          </button>
-          {thinkingExpanded && (
-            <MarkdownFragment
-              text={record.cell.thinkingDetail}
-              rendered={rendered}
-              preview={preview}
-              variant="compact"
-              t={t}
-            />
-          )}
-        </div>
-        {record.cell.outputDetail && (
-          <div className={css.assistantOutput}>
-            <MarkdownFragment
-              text={record.cell.outputDetail}
-              rendered={rendered}
-              preview={preview}
-              t={t}
-            />
-          </div>
-        )}
-        <AssistantToolCalls
-          blocks={record.cell.sourceBlocks}
-          preview={preview}
-          onOpenCall={onOpenCall}
-          t={t}
-        />
-        <RecordAttachments
-          blocks={record.cell.sourceBlocks}
-          preview={preview}
-          renderImages={renderImages}
-          t={t}
-        />
-      </div>
-    )
-  }
-  const source = markdownSource(record)
-  const hasAttachments = record.cell.sourceBlocks?.some(block => block.attachment !== undefined || block.file !== undefined) === true
-  const hasToolCalls = record.cell.kind === 'message'
-    && record.cell.sourceBlocks?.some(block => block.type === 'tool-call') === true
-  if (!source && !hasAttachments && !hasToolCalls) {
-    const emptyLabel = isToolCallOnly(record.cell, t)
-      ? t('record.toolCallOnly')
-      : record.cell.text || t('record.noContent')
-    return <p className={css.noPayload}>{emptyLabel}</p>
-  }
-  if (!rendered || (!hasAttachments && !hasToolCalls)) {
-    return <MarkdownFragment text={source ?? ''} rendered={rendered} preview={preview} t={t} />
-  }
-  return (
-    <div>
-      {source && <MarkdownFragment text={source} rendered preview={preview} t={t} />}
-      {record.cell.kind === 'message' && (
-        <AssistantToolCalls
-          blocks={record.cell.sourceBlocks}
-          preview={preview}
-          onOpenCall={onOpenCall}
-          t={t}
-        />
-      )}
-      <RecordAttachments blocks={record.cell.sourceBlocks} preview={preview} renderImages={renderImages} t={t} />
-    </div>
-  )
-}
-
 function RecordTiming({
   record,
   preview = false,
@@ -1685,379 +764,6 @@ function RequestTiming({
       </div>
       <div><dt>{t('timing.duration')}</dt><dd>{formatElapsedSeconds(null, t)}</dd></div>
     </dl>
-  )
-}
-
-function RecordPayload({
-  record,
-  direction,
-  preview = false,
-  renderImages,
-  stringWrapping,
-  t,
-}: {
-  record: TableRecord
-  direction: 'input' | 'output'
-  preview?: boolean
-  renderImages: RenderMessageImages
-  stringWrapping: JsonTreeProps['stringWrapping']
-  t: TrajectoryTranslate
-}) {
-  const value = direction === 'input' ? record.cell.inputDetail : record.cell.outputDetail
-  const missing = direction === 'input'
-    ? t('record.noPayload')
-    : t('record.noResult')
-  if (!value) return <p className={css.noPayload}>{missing}</p>
-  const error = direction === 'output' && record.cell.isError === true
-  const payloadClass = preview ? css.jsonPreview : css.jsonPayload
-  const payloadClassName = error ? `${payloadClass} ${css.errorPayload}` : payloadClass
-
-  const json = parseJsonContainer(value)
-  const singleTextResult = direction === 'output'
-    && record.cell.outputBlocks?.length === 1
-    && record.cell.outputBlocks[0]?.type === 'text'
-  if (singleTextResult && json !== undefined) {
-    return (
-      <JsonTree
-        data={json}
-        stringWrapping={stringWrapping}
-        collapsedStringLines={preview ? 3 : 12}
-        label={t('record.resultJson')}
-        labels={jsonTreeLabels(t)}
-        className={payloadClassName}
-      />
-    )
-  }
-
-  if (
-    direction === 'output'
-    && record.cell.outputBlocks?.some(block =>
-      block.attachment !== undefined || block.content !== '') === true
-  ) {
-    return (
-      <ToolOutputBlocks
-        blocks={record.cell.outputBlocks}
-        error={error}
-        errorDetail={error ? value : undefined}
-        preview={preview}
-        renderImages={renderImages}
-      />
-    )
-  }
-
-  const markdown = (
-    direction === 'input'
-    && (record.cell.kind === 'user' || record.cell.kind === 'context')
-  ) || (
-    direction === 'output' && record.cell.kind === 'message'
-  )
-  if (markdown) {
-    return (
-      <div className={[
-        preview ? css.markdownPreview : css.markdownPayload,
-        error ? css.errorPayload : undefined,
-      ].filter((className): className is string => className !== undefined).join(' ')}
-      >
-        <MarkdownText text={value} labels={markdownLabels(t)} />
-      </div>
-    )
-  }
-  if (json !== undefined) {
-    return (
-      <JsonTree
-        data={json}
-        stringWrapping={stringWrapping}
-        collapsedStringLines={preview ? 3 : 12}
-        label={t(direction === 'input' ? 'record.payloadJson' : 'record.outputJson')}
-        labels={jsonTreeLabels(t)}
-        className={payloadClassName}
-      />
-    )
-  }
-  return (
-    <pre className={[
-      css.payload,
-      preview ? css.payloadPreview : undefined,
-      error ? css.errorPayload : undefined,
-      value === t('record.noOutput') ? css.noOutputText : undefined,
-    ].filter((value): value is string => value !== undefined).join(' ')}
-    >
-      {value}
-    </pre>
-  )
-}
-
-function RecordSchema({
-  record,
-  preview = false,
-  stringWrapping,
-  t,
-}: {
-  record: TableRecord
-  preview?: boolean
-  stringWrapping: JsonTreeProps['stringWrapping']
-  t: TrajectoryTranslate
-}) {
-  if (!record.cell.schemaDetail) {
-    return <p className={css.noPayload}>{t('record.schemaUnavailable')}</p>
-  }
-  const schema = parseToolSchema(record.cell.schemaDetail)
-  if (schema !== undefined) {
-    return (
-      <div className={preview ? `${css.schema} ${css.schemaPreview}` : css.schema}>
-        <header className={css.schemaIntro}>
-          <h3 className={css.schemaName}>{schema.name}</h3>
-          <p className={css.schemaDescription}>{schema.description}</p>
-        </header>
-        <section className={css.schemaParameters}>
-          <h4 className={css.schemaParametersTitle}>{t('record.parameters')}</h4>
-          <JsonTree
-            data={schema.parameters}
-            stringWrapping={stringWrapping}
-            collapsedStringLines={preview ? 3 : 12}
-            label={t('record.namedParametersJson', { name: schema.name })}
-            labels={jsonTreeLabels(t)}
-            className={css.schemaTree}
-          />
-        </section>
-      </div>
-    )
-  }
-  return (
-    <pre className={`${css.payload} ${preview ? css.payloadPreview : ''}`}>
-      {record.cell.schemaDetail}
-    </pre>
-  )
-}
-
-interface ParsedToolSchema {
-  name: string
-  description: string
-  parameters: object
-}
-
-function parseToolSchema(value: string): ParsedToolSchema | undefined {
-  try {
-    const parsed: unknown = JSON.parse(value)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
-    const schema = parsed as Record<string, unknown>
-    if (
-      typeof schema.name !== 'string'
-      || typeof schema.description !== 'string'
-      || typeof schema.parameters !== 'object'
-      || schema.parameters === null
-      || Array.isArray(schema.parameters)
-    ) return undefined
-    return {
-      name: schema.name,
-      description: schema.description,
-      parameters: schema.parameters,
-    }
-  } catch {
-    return undefined
-  }
-}
-
-function parseJsonContainer(value: string): object | undefined {
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return typeof parsed === 'object' && parsed !== null ? parsed : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function InspectorCopyButton({ text, label, t }: {
-  text: string
-  label: string
-  t: TrajectoryTranslate
-}) {
-  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  useEffect(() => {
-    if (state === 'idle') return
-    const timer = setTimeout(() => { setState('idle') }, 1_500)
-    return () => { clearTimeout(timer) }
-  }, [state])
-  const title = state === 'idle' ? label : t(state === 'copied' ? 'copied' : 'copy.failed')
-  return (
-    <button
-      type="button"
-      className={css.programAction}
-      data-state={state}
-      aria-label={title}
-      title={title}
-      onClick={() => { void writeClipboard(text).then((ok) => { setState(ok ? 'copied' : 'failed') }) }}
-    >
-      {state === 'copied' ? <IconCheckOutline16 size={12} /> : <IconCopyOutline16 size={12} />}
-    </button>
-  )
-}
-
-function ProgramInput({ program, initialWrapped, stringWrapping, onOpen, t }: {
-  program: CodeProgram
-  initialWrapped: boolean
-  stringWrapping: JsonTreeProps['stringWrapping']
-  onOpen?: () => void
-  t: TrajectoryTranslate
-}) {
-  const contentsId = useId()
-  const [wrapped, setWrapped] = useState(initialWrapped)
-  const [showJson, setShowJson] = useState(false)
-  const actions = (
-    <span className={css.programActions}>
-      {!showJson && program.language !== undefined && (
-        <span className={css.programLanguage}>{program.language}</span>
-      )}
-      {!showJson && (
-        <button
-          type="button"
-          className={css.programAction}
-          aria-label={t('record.wrapLines')}
-          title={t('record.wrapLines')}
-          aria-pressed={wrapped}
-          aria-controls={contentsId}
-          onClick={() => {
-            const next = !wrapped
-            setWrapped(next)
-            stringWrapping?.setDefault(next)
-          }}
-        >
-          <IconWrapLinesOutline16 size={12} />
-        </button>
-      )}
-      {onOpen === undefined && (
-        <button
-          type="button"
-          className={css.programAction}
-          aria-label={t('code.originalJson')}
-          title={t('code.originalJson')}
-          aria-pressed={showJson}
-          aria-controls={contentsId}
-          onClick={() => { setShowJson(value => !value) }}
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
-            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M6 2H5a2 2 0 0 0-2 2v2a2 2 0 0 1-2 2 2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h1" />
-            <path d="M10 2h1a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0-2 2v2a2 2 0 0 1-2 2h-1" />
-          </svg>
-        </button>
-      )}
-      <InspectorCopyButton
-        text={showJson ? program.rawInput : program.source}
-        label={t(showJson ? 'copy.json' : 'code.copySource')}
-        t={t}
-      />
-    </span>
-  )
-  const body = (
-    <div id={contentsId} className={css.programContent} data-wrap={wrapped}>
-      {showJson
-        ? <JsonTree data={program.arguments} label={t('record.parametersJson')}
-          labels={jsonTreeLabels(t)} stringWrapping={stringWrapping} />
-        : <CodeBlock code={program.source} lang={program.language} lineNumbers showHeader={false}
-          className={css.programSource} copyLabel={t('code.copySource')} copiedLabel={t('copied')} />}
-    </div>
-  )
-  return onOpen === undefined
-    ? (
-      <section className={css.programPanel}>
-        <header className={css.overviewHeading}>
-          <span>{t('code.source')}</span>
-          {actions}
-        </header>
-        {body}
-      </section>
-    )
-    : <OverviewSection label={t('code.source')} onOpen={onOpen} actions={actions}>{body}</OverviewSection>
-}
-
-function ProgramOutput({ record, stringWrapping, onOpen, t }: {
-  record: TableRecord
-  stringWrapping: JsonTreeProps['stringWrapping']
-  onOpen?: () => void
-  t: TrajectoryTranslate
-}) {
-  const output = record.cell.outputDetail
-  const json = output === undefined || record.cell.isError === true ? undefined : parseJsonContainer(output)
-  const actions = output === undefined ? undefined : (
-    <span className={css.programActions}>
-      <InspectorCopyButton text={output} label={t('code.copyOutput')} t={t} />
-    </span>
-  )
-  const body = (
-    <div className={css.programContent}>
-      {output === undefined || output === ''
-        ? <p className={css.noPayload}>{t(stateOf(record) === 'running' ? 'code.running' : 'record.noOutput')}</p>
-        : json !== undefined
-          ? <JsonTree data={json} label={t('record.outputJson')} labels={jsonTreeLabels(t)}
-            stringWrapping={stringWrapping} collapsedStringLines={onOpen === undefined ? 12 : 3} />
-          : <pre className={`${css.programOutput} ${record.cell.isError === true ? css.programError : ''}`}>{output}</pre>}
-    </div>
-  )
-  return onOpen === undefined
-    ? (
-      <section className={css.programPanel}>
-        <header className={css.overviewHeading}>
-          <span>{t('code.output')}</span>
-          {actions}
-        </header>
-        {body}
-      </section>
-    )
-    : <OverviewSection label={t('code.output')} onOpen={onOpen} actions={actions}>{body}</OverviewSection>
-}
-
-function OverviewSection({
-  label,
-  onOpen,
-  actions,
-  children,
-}: {
-  label: string
-  onOpen: () => void
-  actions?: ReactNode
-  children: ReactNode
-}) {
-  const previewRef = useRef<HTMLDivElement>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const measureOverflow = useCallback((preview: HTMLElement) => {
-    setHasMore(preview.scrollHeight - preview.clientHeight - preview.scrollTop > 1)
-  }, [])
-
-  useLayoutEffect(() => {
-    const preview = previewRef.current as HTMLDivElement
-    const measure = () => { measureOverflow(preview) }
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(preview)
-    for (const child of preview.children) observer.observe(child)
-    return () => { observer.disconnect() }
-  }, [children, measureOverflow])
-
-  return (
-    <section className={css.overviewSection}>
-      <h3 className={css.overviewHeading}>
-        <button
-          type="button"
-          className={css.overviewTitle}
-          onClick={onOpen}
-        >
-          <span>{label}</span>
-          <IconChevronRightOutline14 className={css.overviewTitleIcon} size={12} />
-        </button>
-        {actions}
-      </h3>
-      <div
-        ref={previewRef}
-        className={`${css.overviewPreview} ${css.summaryScrollRegion}`}
-        data-summary-scroll-region=""
-        data-scroll-more={hasMore || undefined}
-        onScroll={(event) => { measureOverflow(event.currentTarget) }}
-      >
-        {children}
-      </div>
-    </section>
   )
 }
 
@@ -3198,14 +1904,14 @@ export function TrajectoryTable({
                 </dl>
                 <div className={css.overviewSections}>
                   {selectedRequestOptions !== undefined && (
-                    <OverviewSection label={t('tab.options')} onOpen={() => { activateTab('options') }}>
+                    <TrajectoryInspectorSection label={t('tab.options')} onOpen={() => { activateTab('options') }}>
                       <RequestOptions options={selectedRequestOptions} preview stringWrapping={stringWrapping} t={t} />
-                    </OverviewSection>
+                    </TrajectoryInspectorSection>
                   )}
-                  <OverviewSection label={t('tab.usage')} onOpen={() => { activateTab('usage') }}>
+                  <TrajectoryInspectorSection label={t('tab.usage')} onOpen={() => { activateTab('usage') }}>
                     <UsageRows usage={selectedRequestUsage} t={t} />
-                  </OverviewSection>
-                  <OverviewSection label={t('tab.timing')} onOpen={() => { activateTab('timing') }}>
+                  </TrajectoryInspectorSection>
+                  <TrajectoryInspectorSection label={t('tab.timing')} onOpen={() => { activateTab('timing') }}>
                     <RequestTiming
                       assistant={selectedRequestAssistant}
                       anchor={selectedRequestAnchor}
@@ -3213,7 +1919,7 @@ export function TrajectoryTable({
                       preview
                       t={t}
                     />
-                  </OverviewSection>
+                  </TrajectoryInspectorSection>
                 </div>
               </>
             )}
@@ -3254,7 +1960,11 @@ export function TrajectoryTable({
                 )
             )}
             {selectedPrompt !== undefined && activeTab === 'tools' && (
-              <ToolCatalog tools={selectedPrompt.tools} stringWrapping={stringWrapping} t={t} />
+              <TrajectoryToolCatalog
+                tools={selectedPrompt.tools}
+                stringWrapping={stringWrapping}
+                t={t}
+              />
             )}
             {!promptSelected
               && selected?.cell.kind === 'compacted'
@@ -3285,8 +1995,8 @@ export function TrajectoryTable({
                     className={`${css.compactedSummary} ${css.summaryScrollRegion}`}
                     data-summary-scroll-region=""
                   >
-                    <MarkdownRecordContent
-                      record={selected}
+                    <TrajectoryMarkdownContent
+                      cell={selected.cell}
                       renderImages={renderImages}
                       rendered
                       thinkingExpanded={thinkingExpanded}
@@ -3401,19 +2111,19 @@ export function TrajectoryTable({
                   {selectedProgram !== undefined
                     ? (
                       <>
-                        <ProgramInput key={`preview:${selectedRecordId}`} program={selectedProgram}
+                        <TrajectoryProgramInput key={`preview:${selectedRecordId}`} program={selectedProgram}
                           initialWrapped={codeWrappingOnOpen}
                           stringWrapping={stringWrapping} onOpen={() => { activateTab('input') }} t={t} />
-                        <ProgramOutput record={selected} stringWrapping={stringWrapping}
+                        <TrajectoryProgramOutput record={selected} stringWrapping={stringWrapping}
                           onOpen={() => { activateTab('output') }} t={t} />
                       </>
                     )
                     : isMarkdownRecord(selected)
                       ? (
                         <>
-                          <OverviewSection label={t('tab.preview')} onOpen={() => { activateTab('rendered') }}>
-                            <MarkdownRecordContent
-                              record={selected}
+                          <TrajectoryInspectorSection label={t('tab.preview')} onOpen={() => { activateTab('rendered') }}>
+                            <TrajectoryMarkdownContent
+                              cell={selected.cell}
                               renderImages={renderImages}
                               rendered
                               preview
@@ -3422,47 +2132,47 @@ export function TrajectoryTable({
                               onOpenCall={openCallSummary}
                               t={t}
                             />
-                          </OverviewSection>
+                          </TrajectoryInspectorSection>
                         </>
                       )
                       : (
                         <>
                           {selected.cell.inputDetail && (
-                            <OverviewSection label={t('tab.payload')} onOpen={() => { activateTab('input') }}>
-                              <RecordPayload record={selected} direction="input" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
-                            </OverviewSection>
+                            <TrajectoryInspectorSection label={t('tab.payload')} onOpen={() => { activateTab('input') }}>
+                              <TrajectoryRecordPayload cell={selected.cell} direction="input" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                            </TrajectoryInspectorSection>
                           )}
                           {selected.cell.outputDetail && (
-                            <OverviewSection label={t('tab.result')} onOpen={() => { activateTab('output') }}>
-                              <RecordPayload record={selected} direction="output" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
-                            </OverviewSection>
+                            <TrajectoryInspectorSection label={t('tab.result')} onOpen={() => { activateTab('output') }}>
+                              <TrajectoryRecordPayload cell={selected.cell} direction="output" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                            </TrajectoryInspectorSection>
                           )}
-                          <OverviewSection label={t('tab.schema')} onOpen={() => { activateTab('schema') }}>
-                            <RecordSchema record={selected} preview stringWrapping={stringWrapping} t={t} />
-                          </OverviewSection>
+                          <TrajectoryInspectorSection label={t('tab.schema')} onOpen={() => { activateTab('schema') }}>
+                            <TrajectoryRecordSchema cell={selected.cell} preview stringWrapping={stringWrapping} t={t} />
+                          </TrajectoryInspectorSection>
                         </>
                       )}
                   {selectedAssistantRequestTarget !== undefined && (
-                    <OverviewSection
+                    <TrajectoryInspectorSection
                       label={t('timing.request')}
                       onOpen={() => {
                         selectRequest(selectedAssistantRequestTarget, 'timing')
                       }}
                     >
                       <RecordTiming record={selected} preview t={t} />
-                    </OverviewSection>
+                    </TrajectoryInspectorSection>
                   )}
                   {(selected.cell.kind === 'tool' || selected.cell.kind === 'subtool') && (
-                    <OverviewSection label={t('tab.timing')} onOpen={() => { activateTab('timing') }}>
+                    <TrajectoryInspectorSection label={t('tab.timing')} onOpen={() => { activateTab('timing') }}>
                       <RecordTiming record={selected} preview t={t} />
-                    </OverviewSection>
+                    </TrajectoryInspectorSection>
                   )}
                 </div>
               </>
             )}
             {!promptSelected && selected !== undefined && activeTab === 'rendered' && (
-              <MarkdownRecordContent
-                record={selected}
+              <TrajectoryMarkdownContent
+                cell={selected.cell}
                 renderImages={renderImages}
                 rendered
                 thinkingExpanded={thinkingExpanded}
@@ -3472,8 +2182,8 @@ export function TrajectoryTable({
               />
             )}
             {!promptSelected && selected !== undefined && activeTab === 'raw' && (
-              <MarkdownRecordContent
-                record={selected}
+              <TrajectoryMarkdownContent
+                cell={selected.cell}
                 renderImages={renderImages}
                 rendered={false}
                 thinkingExpanded={thinkingExpanded}
@@ -3483,22 +2193,22 @@ export function TrajectoryTable({
               />
             )}
             {!promptSelected && selected !== undefined && activeTab === 'source' && (
-              <MessageSource record={selected} stringWrapping={stringWrapping} t={t} />
+              <TrajectoryMessageSource cell={selected.cell} stringWrapping={stringWrapping} t={t} />
             )}
             {!promptSelected && selected !== undefined && activeTab === 'input' && (
               selectedProgram === undefined
-                ? <RecordPayload record={selected} direction="input" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
-                : <ProgramInput key={`input:${selectedRecordId}`} program={selectedProgram}
+                ? <TrajectoryRecordPayload cell={selected.cell} direction="input" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                : <TrajectoryProgramInput key={`input:${selectedRecordId}`} program={selectedProgram}
                   initialWrapped={codeWrappingOnOpen}
                   stringWrapping={stringWrapping} t={t} />
             )}
             {!promptSelected && selected !== undefined && activeTab === 'output' && (
               selectedProgram === undefined
-                ? <RecordPayload record={selected} direction="output" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
-                : <ProgramOutput record={selected} stringWrapping={stringWrapping} t={t} />
+                ? <TrajectoryRecordPayload cell={selected.cell} direction="output" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                : <TrajectoryProgramOutput record={selected} stringWrapping={stringWrapping} t={t} />
             )}
             {!promptSelected && selected !== undefined && activeTab === 'schema' && (
-              <RecordSchema record={selected} stringWrapping={stringWrapping} t={t} />
+              <TrajectoryRecordSchema cell={selected.cell} stringWrapping={stringWrapping} t={t} />
             )}
             {!promptSelected && selected !== undefined && activeTab === 'timing' && (
               <RecordTiming record={selected} t={t} />

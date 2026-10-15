@@ -53,6 +53,12 @@ Trajectory 标签页让你以按轮次组织的事件记录表和交互式时间
 
 视图是纯投影：Trajectory 自有的定义从共享会话窗口组装业务记录——包括因取消而定稿并持久保留的前缀、仅有分片时采用的中断回退记录，以及被中断的工具记录——因此 Trajectory 既不读取也不改变 Chat 会话快照。其 steering（中途引导）分类器通过持续保留的拼接状态只保留下一步的 Inbox ID，并让后续上下文共享当前已认领的每个批次。
 
+账本把请求 identity、显示分组 key、请求编号索引和 section label 放在纯 `trajectory-table-model.ts` 模块中。React table 消费这些 helper，但不再拥有这些数据规则；该模块有直接单测覆盖 assistant/compaction identity 隔离以及重复分组编号。
+
+记录展平、搜索边界重建、turn 与 assistant 折叠、完成状态及请求错误翻译也位于该纯模型中。Inspector 专属的 JSON/schema 解析与 prompt diff 分类位于 `trajectory-inspector-model.ts`；`TrajectoryPromptDiff.tsx` 与 `TrajectoryToolCatalog.tsx` 分别负责对应展示，并通过 `trajectory-presentation-labels.ts` 共享基础组件标签。
+
+记录载荷、schema、程序源码与 Markdown 内容由各自的检查器组件展示。它们接收已记录的单元数据和受控回调；表格保留选择、导航、思考展开与换行选项的所有权。记录表与检查器通过纯展示辅助函数共享记录文本。
+
 原生与嵌套 PTC 工具结果保留原始结构化错误详情。失败记录在记录表中显示错误代码，在检查器中显示错误名称和代码。
 
 完整的追加提示词在请求头未加载时显示为独立系统行；仅提供已知文本，不推断请求选项或工具目录。补入其请求历史后，该独立展示被替代而不重复提示词。历史中的系统提示词变更与最近的请求状态比较，包括没有新请求头的先前提示词更新。每个请求保留其所在位置生效的提示词与变更。包括压缩在内的 surface 替换会恢复最后一个非空的存活系统提示词，即使没有新的系统事件；未加载的提示词在对应分页到达前仍不可用。
